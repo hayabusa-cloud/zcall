@@ -5,7 +5,7 @@
 [![Codecov](https://codecov.io/gh/hayabusa-cloud/zcall/graph/badge.svg)](https://codecov.io/gh/hayabusa-cloud/zcall)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Zero-overhead syscall primitives for Linux and Darwin in Go.
+Zero-overhead syscall primitives for Linux, Darwin, and FreeBSD in Go.
 
 Language: **English** | [简体中文](./README.zh-CN.md) | [Español](./README.es.md) | [日本語](./README.ja.md) | [Français](./README.fr.md)
 
@@ -16,7 +16,7 @@ Language: **English** | [简体中文](./README.zh-CN.md) | [Español](./README.
 ### Key Features
 
 - **Zero Overhead**: Direct kernel invocation via raw assembly
-- **Multi-Architecture**: Supports `linux/amd64`, `linux/arm64`, `linux/riscv64`, `linux/loong64`, `darwin/arm64`
+- **Multi-Architecture**: Supports `linux/amd64`, `linux/arm64`, `linux/riscv64`, `linux/loong64`, `darwin/arm64`, `freebsd/amd64`
 - **Raw Semantics**: Returns kernel result and errno directly
 
 ## Installation
@@ -86,6 +86,7 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 | linux/riscv64 | ✅ Supported | `ECALL` |
 | linux/loong64 | ✅ Supported | `SYSCALL` |
 | darwin/arm64 | ✅ Supported | `SVC #0x80` |
+| freebsd/amd64 | ✅ Supported | `SYSCALL` |
 
 ## Safety Considerations
 

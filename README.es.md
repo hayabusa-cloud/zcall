@@ -5,7 +5,7 @@
 [![Codecov](https://codecov.io/gh/hayabusa-cloud/zcall/graph/badge.svg)](https://codecov.io/gh/hayabusa-cloud/zcall)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Primitivas de syscall sin sobrecarga para Linux y Darwin en Go.
+Primitivas de syscall sin sobrecarga para Linux, Darwin y FreeBSD en Go.
 
 Idioma: [English](./README.md) | [简体中文](./README.zh-CN.md) | **Español** | [日本語](./README.ja.md) | [Français](./README.fr.md)
 
@@ -16,7 +16,7 @@ Idioma: [English](./README.md) | [简体中文](./README.zh-CN.md) | **Español*
 ### Características Principales
 
 - **Sin Sobrecarga**: Invocación directa al kernel mediante ensamblador
-- **Multi-Arquitectura**: Soporta `linux/amd64`, `linux/arm64`, `linux/riscv64`, `linux/loong64`, `darwin/arm64`
+- **Multi-Arquitectura**: Soporta `linux/amd64`, `linux/arm64`, `linux/riscv64`, `linux/loong64`, `darwin/arm64`, `freebsd/amd64`
 - **Semántica Raw**: Retorna resultado del kernel y errno directamente
 
 ## Instalación
@@ -86,6 +86,7 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 | linux/riscv64 | ✅ Soportado | `ECALL` |
 | linux/loong64 | ✅ Soportado | `SYSCALL` |
 | darwin/arm64 | ✅ Soportado | `SVC #0x80` |
+| freebsd/amd64 | ✅ Soportado | `SYSCALL` |
 
 ## Consideraciones de Seguridad
 
