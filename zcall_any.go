@@ -4,15 +4,17 @@
 
 package zcall
 
-import "unsafe"
+import (
+	"unsafe"
+	_ "unsafe" // for go:linkname
+)
 
 // noescape hides a pointer from escape analysis.
+// This links to the runtime's implementation to avoid go vet warnings.
 //
+//go:linkname noescape runtime.noescape
 //go:nosplit
-func noescape(p unsafe.Pointer) unsafe.Pointer {
-	x := uintptr(p)
-	return unsafe.Pointer(x ^ 0)
-}
+func noescape(p unsafe.Pointer) unsafe.Pointer
 
 // Errno is a raw system error number.
 // It implements the error interface and provides helper methods
