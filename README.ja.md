@@ -5,7 +5,7 @@
 [![Codecov](https://codecov.io/gh/hayabusa-cloud/zcall/graph/badge.svg)](https://codecov.io/gh/hayabusa-cloud/zcall)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Go 言語向けゼロオーバーヘッド syscall プリミティブ（Linux・Darwin）。
+Go 言語向けゼロオーバーヘッド syscall プリミティブ（Linux・Darwin・FreeBSD）。
 
 言語: [English](./README.md) | [简体中文](./README.zh-CN.md) | [Español](./README.es.md) | **日本語** | [Français](./README.fr.md)
 
@@ -16,7 +16,7 @@ Go 言語向けゼロオーバーヘッド syscall プリミティブ（Linux・
 ### 主な特徴
 
 - **ゼロオーバーヘッド**: 生アセンブリによる直接カーネル呼び出し
-- **マルチアーキテクチャ**: `linux/amd64`、`linux/arm64`、`linux/riscv64`、`linux/loong64`、`darwin/arm64` をサポート
+- **マルチアーキテクチャ**: `linux/amd64`、`linux/arm64`、`linux/riscv64`、`linux/loong64`、`darwin/arm64`、`freebsd/amd64` をサポート
 - **生セマンティクス**: カーネル結果と errno を直接返却
 
 ## インストール
@@ -86,6 +86,7 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 | linux/riscv64 | ✅ サポート | `ECALL` |
 | linux/loong64 | ✅ サポート | `SYSCALL` |
 | darwin/arm64 | ✅ サポート | `SVC #0x80` |
+| freebsd/amd64 | ✅ サポート | `SYSCALL` |
 
 ## 安全性に関する注意事項
 

@@ -5,7 +5,7 @@
 [![Codecov](https://codecov.io/gh/hayabusa-cloud/zcall/graph/badge.svg)](https://codecov.io/gh/hayabusa-cloud/zcall)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Go 语言零开销系统调用原语（Linux 和 Darwin）。
+Go 语言零开销系统调用原语（Linux、Darwin 和 FreeBSD）。
 
 语言：[English](./README.md) | **简体中文** | [Español](./README.es.md) | [日本語](./README.ja.md) | [Français](./README.fr.md)
 
@@ -16,7 +16,7 @@ Go 语言零开销系统调用原语（Linux 和 Darwin）。
 ### 核心特性
 
 - **零开销**：通过原始汇编直接调用内核
-- **多架构**：支持 `linux/amd64`、`linux/arm64`、`linux/riscv64`、`linux/loong64`、`darwin/arm64`
+- **多架构**：支持 `linux/amd64`、`linux/arm64`、`linux/riscv64`、`linux/loong64`、`darwin/arm64`、`freebsd/amd64`
 - **原始语义**：直接返回内核结果和 errno
 
 ## 安装
@@ -86,6 +86,7 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 | linux/riscv64 | ✅ 支持 | `ECALL` |
 | linux/loong64 | ✅ 支持 | `SYSCALL` |
 | darwin/arm64 | ✅ 支持 | `SVC #0x80` |
+| freebsd/amd64 | ✅ 支持 | `SYSCALL` |
 
 ## 安全注意事项
 
