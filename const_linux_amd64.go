@@ -66,9 +66,9 @@ const (
 	SYS_IO_URING_REGISTER = 427
 
 	// signalfd, pidfd, memfd
-	SYS_SIGNALFD4          = 289
-	SYS_MEMFD_CREATE       = 319
-	SYS_PIDFD_SEND_SIGNAL  = 424
-	SYS_PIDFD_OPEN         = 434
-	SYS_PIDFD_GETFD        = 438
+	SYS_SIGNALFD4         = 289
+	SYS_MEMFD_CREATE      = 319
+	SYS_PIDFD_SEND_SIGNAL = 424
+	SYS_PIDFD_OPEN        = 434
+	SYS_PIDFD_GETFD       = 438
 )
