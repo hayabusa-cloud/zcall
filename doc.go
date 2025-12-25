@@ -32,6 +32,7 @@
 //   - linux/riscv64: Uses ECALL instruction
 //   - linux/loong64: Uses SYSCALL instruction
 //   - darwin/arm64: Uses SVC #0x80 instruction
+//   - freebsd/amd64: Uses SYSCALL instruction
 //
 // # Usage
 //
