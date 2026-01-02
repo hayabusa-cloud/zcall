@@ -273,12 +273,14 @@ func IoUringRegister(fd, opcode uintptr, arg unsafe.Pointer, nrArgs uintptr) (r1
 }
 
 // Mmap maps files or devices into memory.
-func Mmap(addr unsafe.Pointer, length, prot, flags, fd, offset uintptr) (r1 uintptr, errno uintptr) {
-	return Syscall6(SYS_MMAP, uintptr(noescape(addr)), length, prot, flags, fd, offset)
+// Returns unsafe.Pointer to enable vet-clean pointer arithmetic with unsafe.Add.
+func Mmap(addr unsafe.Pointer, length, prot, flags, fd, offset uintptr) (ptr unsafe.Pointer, errno uintptr) {
+	r1, errno := Syscall6(SYS_MMAP, uintptr(noescape(addr)), length, prot, flags, fd, offset)
+	return unsafe.Pointer(r1), errno
 }
 
 // Munmap unmaps files or devices from memory.
-func Munmap(addr, length uintptr) (errno uintptr) {
-	_, errno = Syscall4(SYS_MUNMAP, addr, length, 0, 0)
+func Munmap(addr unsafe.Pointer, length uintptr) (errno uintptr) {
+	_, errno = Syscall4(SYS_MUNMAP, uintptr(addr), length, 0, 0)
 	return
 }
