@@ -176,12 +176,30 @@ func Pipe2(fds *[2]int32, flags uintptr) (errno uintptr) {
 }
 
 // Mmap maps files or devices into memory.
-func Mmap(addr unsafe.Pointer, length uintptr, prot uintptr, flags uintptr, fd uintptr, offset uintptr) (r1 uintptr, errno uintptr) {
-	return Syscall6(SYS_MMAP, uintptr(addr), length, prot, flags, fd, offset)
+// Returns unsafe.Pointer to enable vet-clean pointer arithmetic with unsafe.Add.
+func Mmap(addr unsafe.Pointer, length uintptr, prot uintptr, flags uintptr, fd uintptr, offset uintptr) (ptr unsafe.Pointer, errno uintptr) {
+	r1, errno := Syscall6(SYS_MMAP, uintptr(noescape(addr)), length, prot, flags, fd, offset)
+	return unsafe.Pointer(r1), errno
 }
 
 // Munmap unmaps files or devices from memory.
-func Munmap(addr uintptr, length uintptr) (errno uintptr) {
-	_, errno = Syscall4(SYS_MUNMAP, addr, length, 0, 0)
+func Munmap(addr unsafe.Pointer, length uintptr) (errno uintptr) {
+	_, errno = Syscall4(SYS_MUNMAP, uintptr(addr), length, 0, 0)
 	return
 }
+
+// Memory protection flags.
+const (
+	PROT_NONE  = 0x0
+	PROT_READ  = 0x1
+	PROT_WRITE = 0x2
+	PROT_EXEC  = 0x4
+)
+
+// Memory mapping flags.
+const (
+	MAP_SHARED    = 0x1
+	MAP_PRIVATE   = 0x2
+	MAP_FIXED     = 0x10
+	MAP_ANONYMOUS = 0x1000 // FreeBSD uses MAP_ANON = 0x1000
+)

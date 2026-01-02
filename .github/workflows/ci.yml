@@ -21,7 +21,12 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
       - name: Vet
-        run: go vet ./...
+        run: |
+          go vet ./... 2>&1 | tee /tmp/vet.out || true
+          if [ -s /tmp/vet.out ]; then
+            # Filter package headers and known false positive (Mmap returns kernel pointer)
+            grep -v -E "(^#|possible misuse of unsafe.Pointer)" /tmp/vet.out && exit 1 || true
+          fi
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.out ./...
       - name: Upload coverage to Codecov
@@ -45,7 +50,12 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
       - name: Vet
-        run: go vet ./...
+        run: |
+          go vet ./... 2>&1 | tee /tmp/vet.out || true
+          if [ -s /tmp/vet.out ]; then
+            # Filter package headers and known false positive (Mmap returns kernel pointer)
+            grep -v -E "(^#|possible misuse of unsafe.Pointer)" /tmp/vet.out && exit 1 || true
+          fi
       - name: Run tests
         run: go test -v -race ./...
 

@@ -352,12 +352,13 @@ func TestTimerfdSettime(t *testing.T) {
 func TestMmapMunmap(t *testing.T) {
 	// Map anonymous memory
 	size := uintptr(4096)
-	addr, errno := zcall.Mmap(nil, size, zcall.PROT_READ|zcall.PROT_WRITE, zcall.MAP_PRIVATE|zcall.MAP_ANONYMOUS, ^uintptr(0), 0)
+	ptr, errno := zcall.Mmap(nil, size, zcall.PROT_READ|zcall.PROT_WRITE, zcall.MAP_PRIVATE|zcall.MAP_ANONYMOUS, ^uintptr(0), 0)
 	if errno != 0 {
 		t.Fatalf("Mmap failed: %v", zcall.Errno(errno))
 	}
 
 	// Verify mmap returned a valid address (not NULL or MAP_FAILED)
+	addr := uintptr(ptr)
 	if addr == 0 || addr == ^uintptr(0) {
 		t.Fatalf("Mmap returned invalid address: %x", addr)
 	}
@@ -368,7 +369,7 @@ func TestMmapMunmap(t *testing.T) {
 	}
 
 	// Unmap the memory
-	errno = zcall.Munmap(addr, size)
+	errno = zcall.Munmap(ptr, size)
 	if errno != 0 {
 		t.Fatalf("Munmap failed: %v", zcall.Errno(errno))
 	}
@@ -629,14 +630,15 @@ func TestBindListenAccept(t *testing.T) {
 }
 
 func TestAcceptAndGetpeername(t *testing.T) {
-	// Create listening socket
-	listenFd, errno := zcall.Socket(zcall.AF_INET, zcall.SOCK_STREAM|zcall.SOCK_CLOEXEC, 0)
+	// Create non-blocking listening socket
+	// Non-blocking is required because zcall bypasses Go's netpoller
+	listenFd, errno := zcall.Socket(zcall.AF_INET, zcall.SOCK_STREAM|zcall.SOCK_NONBLOCK|zcall.SOCK_CLOEXEC, 0)
 	if errno != 0 {
 		t.Fatalf("Socket failed: %v", zcall.Errno(errno))
 	}
 	defer zcall.Close(listenFd)
 
-	// Bind to localhost
+	// Bind to localhost with ephemeral port
 	addr := [16]byte{2, 0, 0, 0, 127, 0, 0, 1}
 	errno = zcall.Bind(listenFd, unsafe.Pointer(&addr), 16)
 	if errno != 0 {
@@ -648,7 +650,7 @@ func TestAcceptAndGetpeername(t *testing.T) {
 		t.Fatalf("Listen failed: %v", zcall.Errno(errno))
 	}
 
-	// Get bound address
+	// Get bound address (includes assigned port)
 	var boundAddr [16]byte
 	addrLen := uint32(16)
 	errno = zcall.Getsockname(listenFd, unsafe.Pointer(&boundAddr), unsafe.Pointer(&addrLen))
@@ -656,30 +658,40 @@ func TestAcceptAndGetpeername(t *testing.T) {
 		t.Fatalf("Getsockname failed: %v", zcall.Errno(errno))
 	}
 
-	// Create client socket (blocking for simplicity)
-	clientFd, errno := zcall.Socket(zcall.AF_INET, zcall.SOCK_STREAM|zcall.SOCK_CLOEXEC, 0)
+	// Create non-blocking client socket
+	clientFd, errno := zcall.Socket(zcall.AF_INET, zcall.SOCK_STREAM|zcall.SOCK_NONBLOCK|zcall.SOCK_CLOEXEC, 0)
 	if errno != 0 {
 		t.Fatalf("Socket failed: %v", zcall.Errno(errno))
 	}
 	defer zcall.Close(clientFd)
 
-	// Connect in goroutine
-	done := make(chan struct{})
-	go func() {
-		zcall.Connect(clientFd, unsafe.Pointer(&boundAddr), 16)
-		close(done)
-	}()
+	// Non-blocking connect returns EINPROGRESS
+	errno = zcall.Connect(clientFd, unsafe.Pointer(&boundAddr), 16)
+	if errno != 0 && errno != uintptr(zcall.EINPROGRESS) {
+		t.Fatalf("Connect failed: %v", zcall.Errno(errno))
+	}
 
-	// Accept using Accept (not Accept4)
+	// Spin-wait for Accept (non-blocking returns EAGAIN until connection ready)
+	var acceptFd uintptr
 	var peerAddr [16]byte
 	peerAddrLen := uint32(16)
-	acceptFd, errno := zcall.Accept(listenFd, unsafe.Pointer(&peerAddr), unsafe.Pointer(&peerAddrLen))
+	for i := 0; i < 1000; i++ {
+		acceptFd, errno = zcall.Accept(listenFd, unsafe.Pointer(&peerAddr), unsafe.Pointer(&peerAddrLen))
+		if errno == 0 {
+			break
+		}
+		if errno != uintptr(zcall.EAGAIN) && errno != uintptr(zcall.EWOULDBLOCK) {
+			t.Fatalf("Accept failed: %v", zcall.Errno(errno))
+		}
+		// Brief yield to allow connection to complete
+		for j := 0; j < 1000; j++ {
+			// spin
+		}
+	}
 	if errno != 0 {
-		t.Fatalf("Accept failed: %v", zcall.Errno(errno))
+		t.Fatalf("Accept timed out after spinning")
 	}
 	defer zcall.Close(acceptFd)
-
-	<-done
 
 	// Test Getpeername on accepted socket
 	var remotePeer [16]byte
@@ -689,7 +701,7 @@ func TestAcceptAndGetpeername(t *testing.T) {
 		t.Fatalf("Getpeername failed: %v", zcall.Errno(errno))
 	}
 
-	// Verify it's an IPv4 address
+	// Verify it's an IPv4 address (family = AF_INET = 2)
 	if remotePeer[0] != 2 {
 		t.Fatalf("Getpeername returned wrong family: %d", remotePeer[0])
 	}
