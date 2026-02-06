@@ -25,12 +25,28 @@ Langue : [English](./README.md) | [简体中文](./README.zh-CN.md) | [Español]
 go get code.hybscloud.com/zcall
 ```
 
-## Démarrage Rapide
+## Exemple
+
+### I/O Basique
 
 ```go
+// Écrire sur stdout
 msg := []byte("Hello from zcall!\n")
-// Écriture directe au kernel sur stdout
-zcall.Write(1, msg)
+n, errno := zcall.Write(1, msg)
+if errno != 0 {
+    fmt.Printf("write failed: %v\n", zcall.Errno(errno))
+}
+```
+
+### Socket Non-Bloquant
+
+```go
+// Créer un socket TCP non-bloquant
+fd, errno := zcall.Socket(zcall.AF_INET, zcall.SOCK_STREAM|zcall.SOCK_NONBLOCK, 0)
+if errno != 0 {
+    return zcall.Errno(errno)
+}
+defer zcall.Close(fd)
 ```
 
 ## API

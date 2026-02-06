@@ -21,9 +21,9 @@
 // "golang.org/x/sys/unix". All syscall numbers and constants are
 // defined internally.
 //
-// Raw Semantics: Functions return the raw kernel result and errno.
-// A negative return value indicates an error, with the absolute value
-// representing the errno. The caller must handle error translation.
+// Raw Semantics: Functions return (result, errno) directly from the kernel.
+// errno == 0 indicates success; errno != 0 is the raw kernel error number.
+// The caller must handle error translation using zcall.Errno(errno).
 //
 // # Supported Architectures
 //

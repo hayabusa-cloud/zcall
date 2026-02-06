@@ -44,6 +44,7 @@ const (
 	EDOM            Errno = 33
 	ERANGE          Errno = 34
 	EDEADLK         Errno = 35
+	EDEADLOCK       Errno = EDEADLK
 	ENAMETOOLONG    Errno = 36
 	ENOLCK          Errno = 37
 	ENOSYS          Errno = 38
