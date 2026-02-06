@@ -97,6 +97,7 @@ const (
 	TCP_INFO          = 11
 	TCP_QUICKACK      = 12
 	TCP_CONGESTION    = 13
+	TCP_USER_TIMEOUT  = 18
 	TCP_FASTOPEN      = 23
 	TCP_NOTSENT_LOWAT = 25
 )
@@ -116,6 +117,11 @@ const (
 	IPV6_PKTINFO      = 50
 	IPV6_RECVHOPLIMIT = 51
 	IPV6_HOPLIMIT     = 52
+)
+
+// IP options.
+const (
+	IP_TRANSPARENT = 19
 )
 
 // File descriptor flags.
