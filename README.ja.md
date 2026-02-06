@@ -25,12 +25,28 @@ Go 言語向けゼロオーバーヘッド syscall プリミティブ（Linux・
 go get code.hybscloud.com/zcall
 ```
 
-## クイックスタート
+## 使用例
+
+### 基本 I/O
 
 ```go
+// 標準出力への書き込み
 msg := []byte("Hello from zcall!\n")
-// stdout への直接カーネル書き込み
-zcall.Write(1, msg)
+n, errno := zcall.Write(1, msg)
+if errno != 0 {
+    fmt.Printf("write failed: %v\n", zcall.Errno(errno))
+}
+```
+
+### ノンブロッキングソケット
+
+```go
+// ノンブロッキング TCP ソケットの作成
+fd, errno := zcall.Socket(zcall.AF_INET, zcall.SOCK_STREAM|zcall.SOCK_NONBLOCK, 0)
+if errno != 0 {
+    return zcall.Errno(errno)
+}
+defer zcall.Close(fd)
 ```
 
 ## API

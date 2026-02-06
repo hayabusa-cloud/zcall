@@ -25,12 +25,28 @@ Go 语言零开销系统调用原语（Linux、Darwin 和 FreeBSD）。
 go get code.hybscloud.com/zcall
 ```
 
-## 快速开始
+## 示例
+
+### 基础 I/O
 
 ```go
+// 写入标准输出
 msg := []byte("Hello from zcall!\n")
-// 直接内核写入到标准输出
-zcall.Write(1, msg)
+n, errno := zcall.Write(1, msg)
+if errno != 0 {
+    fmt.Printf("write failed: %v\n", zcall.Errno(errno))
+}
+```
+
+### 非阻塞套接字
+
+```go
+// 创建非阻塞 TCP 套接字
+fd, errno := zcall.Socket(zcall.AF_INET, zcall.SOCK_STREAM|zcall.SOCK_NONBLOCK, 0)
+if errno != 0 {
+    return zcall.Errno(errno)
+}
+defer zcall.Close(fd)
 ```
 
 ## API

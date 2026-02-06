@@ -4,10 +4,7 @@
 
 package zcall
 
-import (
-	"unsafe"
-	_ "unsafe" // for go:linkname
-)
+import "unsafe"
 
 // noescape hides a pointer from escape analysis.
 // This links to the runtime's implementation to avoid go vet warnings.
