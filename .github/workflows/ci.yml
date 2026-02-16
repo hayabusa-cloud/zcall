@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version: ['1.25.x', 'stable']
+        go-version: ['1.26.x', 'stable']
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
@@ -42,7 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version: ['1.25.x', 'stable']
+        go-version: ['1.26.x', 'stable']
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
@@ -75,7 +75,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.x'
+          go-version: '1.26.x'
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}
