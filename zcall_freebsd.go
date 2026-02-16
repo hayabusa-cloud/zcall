@@ -115,18 +115,20 @@ func Getpeername(fd uintptr, addr unsafe.Pointer, addrlen unsafe.Pointer) (errno
 
 // Sendto sends a message on a socket.
 func Sendto(fd uintptr, buf []byte, flags uintptr, addr unsafe.Pointer, addrlen uintptr) (n uintptr, errno uintptr) {
-	if len(buf) == 0 {
-		return Syscall6(SYS_SENDTO, fd, 0, 0, flags, uintptr(noescape(addr)), addrlen)
+	var p uintptr
+	if len(buf) > 0 {
+		p = uintptr(noescape(unsafe.Pointer(&buf[0])))
 	}
-	return Syscall6(SYS_SENDTO, fd, uintptr(noescape(unsafe.Pointer(&buf[0]))), uintptr(len(buf)), flags, uintptr(noescape(addr)), addrlen)
+	return Syscall6(SYS_SENDTO, fd, p, uintptr(len(buf)), flags, uintptr(noescape(addr)), addrlen)
 }
 
 // Recvfrom receives a message from a socket.
 func Recvfrom(fd uintptr, buf []byte, flags uintptr, addr unsafe.Pointer, addrlen unsafe.Pointer) (n uintptr, errno uintptr) {
-	if len(buf) == 0 {
-		return Syscall6(SYS_RECVFROM, fd, 0, 0, flags, uintptr(noescape(addr)), uintptr(noescape(addrlen)))
+	var p uintptr
+	if len(buf) > 0 {
+		p = uintptr(noescape(unsafe.Pointer(&buf[0])))
 	}
-	return Syscall6(SYS_RECVFROM, fd, uintptr(noescape(unsafe.Pointer(&buf[0]))), uintptr(len(buf)), flags, uintptr(noescape(addr)), uintptr(noescape(addrlen)))
+	return Syscall6(SYS_RECVFROM, fd, p, uintptr(len(buf)), flags, uintptr(noescape(addr)), uintptr(noescape(addrlen)))
 }
 
 // Sendmsg sends a message on a socket using a msghdr structure.
@@ -140,12 +142,12 @@ func Recvmsg(fd uintptr, msg unsafe.Pointer, flags uintptr) (n uintptr, errno ui
 }
 
 // Sendmmsg sends multiple messages on a socket.
-func Sendmmsg(fd uintptr, msgvec unsafe.Pointer, vlen uintptr, flags uintptr) (n uintptr, errno uintptr) {
+func Sendmmsg(fd uintptr, msgvec unsafe.Pointer, vlen, flags uintptr) (n uintptr, errno uintptr) {
 	return Syscall4(SYS_SENDMMSG, fd, uintptr(noescape(msgvec)), vlen, flags)
 }
 
 // Recvmmsg receives multiple messages from a socket.
-func Recvmmsg(fd uintptr, msgvec unsafe.Pointer, vlen uintptr, flags uintptr, timeout unsafe.Pointer) (n uintptr, errno uintptr) {
+func Recvmmsg(fd uintptr, msgvec unsafe.Pointer, vlen, flags uintptr, timeout unsafe.Pointer) (n uintptr, errno uintptr) {
 	return Syscall6(SYS_RECVMMSG, fd, uintptr(noescape(msgvec)), vlen, flags, uintptr(noescape(timeout)), 0)
 }
 
@@ -161,12 +163,12 @@ func Writev(fd uintptr, iov unsafe.Pointer, iovcnt uintptr) (n uintptr, errno ui
 
 // Preadv reads from a file descriptor at an offset into multiple buffers.
 func Preadv(fd uintptr, iov unsafe.Pointer, iovcnt uintptr, offset int64) (n uintptr, errno uintptr) {
-	return Syscall6(SYS_PREADV, fd, uintptr(noescape(iov)), iovcnt, uintptr(offset), 0, 0)
+	return Syscall4(SYS_PREADV, fd, uintptr(noescape(iov)), iovcnt, uintptr(offset))
 }
 
 // Pwritev writes to a file descriptor at an offset from multiple buffers.
 func Pwritev(fd uintptr, iov unsafe.Pointer, iovcnt uintptr, offset int64) (n uintptr, errno uintptr) {
-	return Syscall6(SYS_PWRITEV, fd, uintptr(noescape(iov)), iovcnt, uintptr(offset), 0, 0)
+	return Syscall4(SYS_PWRITEV, fd, uintptr(noescape(iov)), iovcnt, uintptr(offset))
 }
 
 // Pipe2 creates a pipe with flags.
@@ -177,7 +179,7 @@ func Pipe2(fds *[2]int32, flags uintptr) (errno uintptr) {
 
 // Mmap maps files or devices into memory.
 // Returns unsafe.Pointer to enable vet-clean pointer arithmetic with unsafe.Add.
-func Mmap(addr unsafe.Pointer, length uintptr, prot uintptr, flags uintptr, fd uintptr, offset uintptr) (ptr unsafe.Pointer, errno uintptr) {
+func Mmap(addr unsafe.Pointer, length, prot, flags, fd, offset uintptr) (ptr unsafe.Pointer, errno uintptr) {
 	r1, errno := Syscall6(SYS_MMAP, uintptr(noescape(addr)), length, prot, flags, fd, offset)
 	return unsafe.Pointer(r1), errno
 }
