@@ -155,3 +155,15 @@ const (
 	O_EXCL     = 0x800
 	O_CLOEXEC  = 0x100000
 )
+
+// Iovec is the I/O vector for vectored I/O operations.
+type Iovec struct {
+	Base *byte
+	Len  uint64
+}
+
+// Timespec represents a time value with nanosecond precision.
+type Timespec struct {
+	Sec  int64
+	Nsec int64
+}

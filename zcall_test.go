@@ -675,7 +675,7 @@ func TestAcceptAndGetpeername(t *testing.T) {
 	var acceptFd uintptr
 	var peerAddr [16]byte
 	peerAddrLen := uint32(16)
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		acceptFd, errno = zcall.Accept(listenFd, unsafe.Pointer(&peerAddr), unsafe.Pointer(&peerAddrLen))
 		if errno == 0 {
 			break
@@ -684,7 +684,7 @@ func TestAcceptAndGetpeername(t *testing.T) {
 			t.Fatalf("Accept failed: %v", zcall.Errno(errno))
 		}
 		// Brief yield to allow connection to complete
-		for j := 0; j < 1000; j++ {
+		for range 1000 {
 			// spin
 		}
 	}
