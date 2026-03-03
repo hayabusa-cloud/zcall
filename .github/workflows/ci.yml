@@ -15,9 +15,9 @@ jobs:
       matrix:
         go-version: ['1.26.x', 'stable']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
       - name: Vet
@@ -44,9 +44,9 @@ jobs:
       matrix:
         go-version: ['1.26.x', 'stable']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
       - name: Vet
@@ -71,9 +71,9 @@ jobs:
           - { goos: linux, goarch: loong64 }
           - { goos: freebsd, goarch: amd64 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.26.x'
       - name: Build
