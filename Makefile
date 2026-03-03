@@ -1,13 +1,21 @@
-.PHONY: test bench vet clean
+GO ?= go
 
-test:
-	go test -race ./...
+.PHONY: all fmt vet test bench clean
 
-bench:
-	go test -bench=. -benchmem -run=^$$ ./...
+all: fmt vet test
+
+fmt:
+	$(GO) fmt ./...
 
 vet:
-	go vet ./... 2>&1 | grep -v "possible misuse of unsafe.Pointer"
+	@$(GO) vet ./... 2>&1 | grep -v -E "(^#|possible misuse of unsafe.Pointer)" && exit 1 || true
+
+test:
+	$(GO) test -race ./...
+
+bench:
+	$(GO) test -bench=. -benchmem -run=^$$ ./...
 
 clean:
 	rm -f coverage.out
+	$(GO) clean -testcache
