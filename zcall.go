@@ -173,12 +173,12 @@ func Pwritev(fd uintptr, iov unsafe.Pointer, iovcnt uintptr, offset int64) (n ui
 
 // Preadv2 reads into multiple buffers at a given offset with flags.
 func Preadv2(fd uintptr, iov unsafe.Pointer, iovcnt uintptr, offset int64, flags uintptr) (n uintptr, errno uintptr) {
-	return Syscall6(SYS_PREADV2, fd, uintptr(noescape(iov)), iovcnt, uintptr(offset), flags, 0)
+	return Syscall6(SYS_PREADV2, fd, uintptr(noescape(iov)), iovcnt, uintptr(offset), 0, flags)
 }
 
 // Pwritev2 writes from multiple buffers at a given offset with flags.
 func Pwritev2(fd uintptr, iov unsafe.Pointer, iovcnt uintptr, offset int64, flags uintptr) (n uintptr, errno uintptr) {
-	return Syscall6(SYS_PWRITEV2, fd, uintptr(noescape(iov)), iovcnt, uintptr(offset), flags, 0)
+	return Syscall6(SYS_PWRITEV2, fd, uintptr(noescape(iov)), iovcnt, uintptr(offset), 0, flags)
 }
 
 // Pipe2 creates a pipe with flags.
@@ -276,7 +276,7 @@ func IoUringRegister(fd, opcode uintptr, arg unsafe.Pointer, nrArgs uintptr) (r1
 // Returns unsafe.Pointer to enable vet-clean pointer arithmetic with unsafe.Add.
 func Mmap(addr unsafe.Pointer, length, prot, flags, fd, offset uintptr) (ptr unsafe.Pointer, errno uintptr) {
 	r1, errno := Syscall6(SYS_MMAP, uintptr(noescape(addr)), length, prot, flags, fd, offset)
-	return unsafe.Pointer(r1), errno
+	return asPointer(r1), errno
 }
 
 // Munmap unmaps files or devices from memory.

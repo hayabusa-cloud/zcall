@@ -13,6 +13,14 @@ import "unsafe"
 //go:nosplit
 func noescape(p unsafe.Pointer) unsafe.Pointer
 
+// asPointer converts a uintptr to an unsafe.Pointer.
+// This is used to satisfy go vet for mmap returns.
+//
+//go:nosplit
+func asPointer(p uintptr) unsafe.Pointer {
+	return *(*unsafe.Pointer)(unsafe.Pointer(&p))
+}
+
 // Errno is a raw system error number.
 // It implements the error interface and provides helper methods
 // for common error patterns.
