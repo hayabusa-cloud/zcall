@@ -12,11 +12,55 @@ package zcall
 
 // Socket address families.
 const (
-	AF_UNIX   = 1
-	AF_LOCAL  = AF_UNIX
-	AF_INET   = 2
-	AF_INET6  = 10
-	AF_PACKET = 17
+	AF_UNSPEC  = 0
+	AF_UNIX    = 1
+	AF_LOCAL   = AF_UNIX
+	AF_INET    = 2
+	AF_NETLINK = 16
+	AF_INET6   = 10
+	AF_PACKET  = 17
+)
+
+// Netlink protocols.
+const (
+	NETLINK_ROUTE = 0
+)
+
+// Netlink message flags and message types.
+const (
+	NLM_F_REQUEST = 0x1
+	NLM_F_ROOT    = 0x100
+	NLM_F_MATCH   = 0x200
+	NLM_F_DUMP    = NLM_F_ROOT | NLM_F_MATCH
+
+	NLMSG_ERROR = 0x2
+	NLMSG_DONE  = 0x3
+)
+
+// Route netlink message types and attributes.
+const (
+	RTM_NEWLINK = 0x10
+	RTM_GETLINK = 0x12
+
+	IFLA_ADDRESS = 0x1
+	IFLA_IFNAME  = 0x3
+	IFLA_MTU     = 0x4
+)
+
+// Network interface ioctls.
+const (
+	IFNAMSIZ     = 16
+	SIOCGIFINDEX = 0x8933
+)
+
+// Network interface flags.
+const (
+	IFF_UP          = 0x1
+	IFF_BROADCAST   = 0x2
+	IFF_LOOPBACK    = 0x8
+	IFF_POINTOPOINT = 0x10
+	IFF_RUNNING     = 0x40
+	IFF_MULTICAST   = 0x1000
 )
 
 // Socket types.
