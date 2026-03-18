@@ -5,19 +5,26 @@
 [![Codecov](https://codecov.io/gh/hayabusa-cloud/zcall/graph/badge.svg)](https://codecov.io/gh/hayabusa-cloud/zcall)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Go 言語向けゼロオーバーヘッド syscall プリミティブ（Linux・Darwin・FreeBSD）。
+Linux、Darwin、および実験的な FreeBSD 向けの Go 低レベル syscall プリミティブ。
 
 言語: [English](./README.md) | [简体中文](./README.zh-CN.md) | [Español](./README.es.md) | **日本語** | [Français](./README.fr.md)
 
 ## 概要
 
-`zcall` は Go ランタイムの syscall 機構（`entersyscall`/`exitsyscall`）をバイパスする生の syscall エントリポイントを提供します。これによりスケジューラフックのレイテンシが排除され、`io_uring` サブミッションなどの低レイテンシ I/O パスに最適です。
+`zcall` は Go ランタイムの syscall 機構（`entersyscall`/`exitsyscall`）をバイパスする低レベルな syscall エントリポイントを提供します。`io_uring` サブミッションのように syscall 境界を直接制御する必要があるコードパスを対象にしています。
 
-### 主な特徴
+### 特性
 
-- **ゼロオーバーヘッド**: 生アセンブリによる直接カーネル呼び出し
-- **マルチアーキテクチャ**: `linux/amd64`、`linux/arm64`、`linux/riscv64`、`linux/loong64`、`darwin/arm64`、`freebsd/amd64` をサポート
-- **生セマンティクス**: カーネル結果と errno を直接返却
+- 各プラットフォーム向けのアセンブリスタブで提供される直接 syscall エントリポイント。
+- カーネルに近い戻り値の形を保ち、ラッパーは生の結果値と `errno` を返します。
+- `syscall` や `x/sys/unix` に依存せず、syscall 番号と定数を内部で定義します。
+- ビルドタグでプラットフォーム別の実装を切り替えます。
+
+### 操作範囲
+
+- 4 引数および 6 引数 syscall のプリミティブ入口。
+- 一般的な I/O、ソケット、メモリ、ソケットオプション向けのラッパー。
+- Linux 専用のネットワークインターフェース参照、特殊 FD、ゼロコピー、`io_uring` 用ヘルパー。
 
 ## インストール
 
@@ -25,31 +32,46 @@ Go 言語向けゼロオーバーヘッド syscall プリミティブ（Linux・
 go get code.hybscloud.com/zcall
 ```
 
-## 使用例
-
-### 基本 I/O
+## Usage
 
 ```go
-// 標準出力への書き込み
 msg := []byte("Hello from zcall!\n")
+// stdout への直接カーネル書き込み
+_, _ = zcall.Write(1, msg)
+```
+
+## 使用例
+
+### `errno` を直接確認する
+
+```go
+msg := []byte("hello\n")
 n, errno := zcall.Write(1, msg)
 if errno != 0 {
-    fmt.Printf("write failed: %v\n", zcall.Errno(errno))
+	return zcall.Errno(errno)
 }
 ```
 
-### ノンブロッキングソケット
+### nonblocking ソケットを作成する
 
 ```go
-// ノンブロッキング TCP ソケットの作成
-fd, errno := zcall.Socket(zcall.AF_INET, zcall.SOCK_STREAM|zcall.SOCK_NONBLOCK, 0)
+fd, errno := zcall.Socket(zcall.AF_INET, zcall.SOCK_STREAM|zcall.SOCK_NONBLOCK|zcall.SOCK_CLOEXEC, 0)
 if errno != 0 {
-    return zcall.Errno(errno)
+	return zcall.Errno(errno)
 }
 defer zcall.Close(fd)
 ```
 
-## API
+### Linux: ネットワークインターフェースを列挙する
+
+```go
+ifaces, err := zcall.Interfaces()
+if err != nil {
+	return err
+}
+```
+
+## Types/Operations
 
 ### プリミティブ Syscall
 
@@ -61,18 +83,32 @@ Syscall4(num, a1, a2, a3, a4 uintptr) (r1, errno uintptr)
 Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 ```
 
-### 便利なラッパー
+### ラッパーの提供状況
+
+#### Linux と Darwin で利用可能
 
 | カテゴリ | 関数 |
 |----------|------|
-| 基本 I/O | `Read`、`Write`、`Close` |
-| ベクタ I/O | `Readv`、`Writev`、`Preadv`、`Pwritev`、`Preadv2`、`Pwritev2` |
-| ソケット | `Socket`、`Bind`、`Listen`、`Accept`、`Accept4`、`Connect`、`Shutdown` |
-| ソケット I/O | `Sendto`、`Recvfrom`、`Sendmsg`、`Recvmsg`、`Sendmmsg`、`Recvmmsg` |
-| メモリ | `Mmap`、`Munmap`、`MemfdCreate` |
+| 基本 I/O | `Read`、`Write`、`Close`、`Ioctl` |
+| ベクタ I/O | `Readv`、`Writev`、`Preadv`、`Pwritev` |
+| ソケット | `Socket`、`Bind`、`Listen`、`Accept`、`Connect`、`Shutdown`、`Socketpair` |
+| ソケットオプション | `Setsockopt`、`Getsockopt`、`Getsockname`、`Getpeername` |
+| ソケット I/O | `Sendto`、`Recvfrom`、`Sendmsg`、`Recvmsg` |
+| メモリ | `Mmap`、`Munmap`、`Pipe2` |
+
+#### Linux 専用
+
+| カテゴリ | 関数 |
+|----------|------|
+| ベクタ I/O | `Preadv2`、`Pwritev2` |
+| ソケット | `Accept4` |
+| ソケット I/O | `Sendmmsg`、`Recvmmsg` |
+| ネットワーク | `Interfaces`、`InterfaceByName`、`InterfaceByIndex` |
+| メモリ | `MemfdCreate` |
 | タイマー | `TimerfdCreate`、`TimerfdSettime`、`TimerfdGettime` |
 | イベント | `Eventfd2`、`Signalfd4` |
-| ゼロコピー | `Splice`、`Tee`、`Vmsplice`、`Pipe2` |
+| プロセス | `PidfdOpen`、`PidfdGetfd`、`PidfdSendSignal` |
+| ゼロコピー | `Splice`、`Tee`、`Vmsplice` |
 | io_uring | `IoUringSetup`、`IoUringEnter`、`IoUringRegister` |
 
 ## アーキテクチャ
@@ -93,7 +129,7 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 └─────────────────────────────────────────────────────────┘
 ```
 
-## サポートプラットフォーム
+## Platform Support
 
 | アーキテクチャ | 状態 | 命令 |
 |----------------|------|------|
@@ -102,18 +138,10 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 | linux/riscv64 | ✅ サポート | `ECALL` |
 | linux/loong64 | ✅ サポート | `SYSCALL` |
 | darwin/arm64 | ✅ サポート | `SVC #0x80` |
-| freebsd/amd64 | ✅ サポート | `SYSCALL` |
-
-## 安全性に関する注意事項
-
-`zcall` は Go のスケジューラフックをバイパスするため：
-
-1. **ノンブロッキング呼び出し**: 適切な準備状態チェックを伴うノンブロッキング syscall を優先
-2. **ポインタの有効性**: syscall 実行中はポインタが有効であることを確認
-3. **エラー処理**: errno をチェック；エラー変換には `zcall.Errno(errno)` を使用
+| freebsd/amd64 | ⚠ 実験的、未検証 | `SYSCALL` |
 
 ## ライセンス
 
 MIT — [LICENSE](./LICENSE) を参照。
 
-©2025 Hayabusa Cloud Co., Ltd.
+©2025 [Hayabusa Cloud Co., Ltd.](https://code.hybscloud.com)

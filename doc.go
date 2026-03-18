@@ -2,22 +2,22 @@
 // Use of this source code is governed by a MIT license
 // that can be found in the LICENSE file.
 
-// Package zcall provides zero-overhead syscall primitives for Linux and Darwin.
+// Package zcall provides raw syscall primitives for Linux and Darwin.
 //
 // # Overview
 //
 // zcall bypasses Go's runtime syscall machinery (entersyscall/exitsyscall)
-// by invoking the kernel directly via raw assembly. This eliminates the
-// latency tax imposed by Go's scheduler hooks, making it suitable for
-// low-latency I/O paths such as io_uring submission and completion.
+// by invoking the kernel directly via raw assembly. This changes how the
+// caller interacts with the Go runtime and is intended for code paths that
+// require direct syscall control, such as io_uring submission and completion.
 //
-// # Design Principles
+// # Design Properties
 //
-// Zero Overhead: All syscalls are implemented in pure assembly without
-// any Go runtime interaction. The caller is responsible for cooperative
+// Runtime Interaction: All syscalls are implemented in pure assembly without
+// Go runtime syscall hooks. The caller is responsible for cooperative
 // scheduling.
 //
-// Zero Dependencies: This package does not import "syscall" or
+// Dependencies: This package does not import "syscall" or
 // "golang.org/x/sys/unix". All syscall numbers and constants are
 // defined internally.
 //
@@ -36,9 +36,9 @@
 //
 // # Usage
 //
-// zcall is designed as a building block for high-performance I/O libraries.
-// Direct usage requires understanding of Linux syscall semantics and
-// careful attention to memory safety.
+// zcall is intended as a building block for I/O libraries that need direct
+// syscall control. Direct usage requires understanding of Linux syscall
+// semantics and careful attention to memory safety.
 //
 //	r1, errno := zcall.Syscall6(zcall.SYS_IO_URING_ENTER, fd, toSubmit, minComplete, flags, sigset, sigsetSize)
 //	if errno != 0 {
