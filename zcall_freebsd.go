@@ -181,7 +181,7 @@ func Pipe2(fds *[2]int32, flags uintptr) (errno uintptr) {
 // Returns unsafe.Pointer to enable vet-clean pointer arithmetic with unsafe.Add.
 func Mmap(addr unsafe.Pointer, length, prot, flags, fd, offset uintptr) (ptr unsafe.Pointer, errno uintptr) {
 	r1, errno := Syscall6(SYS_MMAP, uintptr(noescape(addr)), length, prot, flags, fd, offset)
-	return unsafe.Pointer(r1), errno
+	return asPointer(r1), errno
 }
 
 // Munmap unmaps files or devices from memory.
