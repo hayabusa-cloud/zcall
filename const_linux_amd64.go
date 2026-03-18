@@ -16,6 +16,7 @@ const (
 	SYS_FSTAT     = 5
 	SYS_MMAP      = 9
 	SYS_MUNMAP    = 11
+	SYS_IOCTL     = 16
 	SYS_FTRUNCATE = 77
 
 	// Vectored I/O
@@ -64,6 +65,7 @@ const (
 	SYS_IO_URING_SETUP    = 425
 	SYS_IO_URING_ENTER    = 426
 	SYS_IO_URING_REGISTER = 427
+	SYS_PRLIMIT64         = 302
 
 	// signalfd, pidfd, memfd
 	SYS_SIGNALFD4         = 289

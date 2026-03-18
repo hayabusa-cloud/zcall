@@ -5,19 +5,26 @@
 [![Codecov](https://codecov.io/gh/hayabusa-cloud/zcall/graph/badge.svg)](https://codecov.io/gh/hayabusa-cloud/zcall)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Primitives syscall sans surcharge pour Linux, Darwin et FreeBSD en Go.
+Primitives syscall de bas niveau pour Go sur Linux, Darwin et FreeBSD expérimental.
 
 Langue : [English](./README.md) | [简体中文](./README.zh-CN.md) | [Español](./README.es.md) | [日本語](./README.ja.md) | **Français**
 
 ## Aperçu
 
-`zcall` fournit des points d'entrée syscall bruts qui contournent la machinerie syscall du runtime Go (`entersyscall`/`exitsyscall`). Cela élimine la latence des hooks du scheduler, idéal pour les chemins I/O à faible latence comme la soumission `io_uring`.
+`zcall` fournit des points d'entrée syscall de bas niveau qui contournent la mécanique syscall du runtime Go (`entersyscall`/`exitsyscall`). Il vise les chemins de code qui nécessitent un contrôle direct des frontières de syscall, comme la soumission `io_uring`.
 
-### Caractéristiques Principales
+### Propriétés
 
-- **Zéro Surcharge** : Invocation directe du kernel via assembleur brut
-- **Multi-Architecture** : Supporte `linux/amd64`, `linux/arm64`, `linux/riscv64`, `linux/loong64`, `darwin/arm64`, `freebsd/amd64`
-- **Sémantique Brute** : Retourne le résultat kernel et errno directement
+- Points d'entrée syscall directs, exposés via des stubs assembleur pour chaque plateforme.
+- Sémantique de retour proche du noyau : les wrappers renvoient le résultat brut avec `errno`.
+- Numéros de syscall et constantes définis en interne, sans dépendre de `syscall` ni de `x/sys/unix`.
+- Implémentations spécifiques à chaque plateforme sélectionnées via des build tags.
+
+### Portée opérationnelle
+
+- Entrées primitives pour les syscalls à 4 et 6 arguments.
+- Wrappers pour les opérations courantes d'I/O, de socket, de mémoire et d'options de socket.
+- Helpers Linux pour l'interrogation des interfaces réseau, les descripteurs spéciaux, le zero-copy et `io_uring`.
 
 ## Installation
 
@@ -25,33 +32,48 @@ Langue : [English](./README.md) | [简体中文](./README.zh-CN.md) | [Español]
 go get code.hybscloud.com/zcall
 ```
 
-## Exemple
-
-### I/O Basique
+## Utilisation
 
 ```go
-// Écrire sur stdout
 msg := []byte("Hello from zcall!\n")
+// Écriture directe au kernel sur stdout
+_, _ = zcall.Write(1, msg)
+```
+
+## Exemples d'utilisation
+
+### Vérifier `errno` directement
+
+```go
+msg := []byte("hello\n")
 n, errno := zcall.Write(1, msg)
 if errno != 0 {
-    fmt.Printf("write failed: %v\n", zcall.Errno(errno))
+	return zcall.Errno(errno)
 }
 ```
 
-### Socket Non-Bloquant
+### Créer un socket non bloquant
 
 ```go
-// Créer un socket TCP non-bloquant
-fd, errno := zcall.Socket(zcall.AF_INET, zcall.SOCK_STREAM|zcall.SOCK_NONBLOCK, 0)
+fd, errno := zcall.Socket(zcall.AF_INET, zcall.SOCK_STREAM|zcall.SOCK_NONBLOCK|zcall.SOCK_CLOEXEC, 0)
 if errno != 0 {
-    return zcall.Errno(errno)
+	return zcall.Errno(errno)
 }
 defer zcall.Close(fd)
 ```
 
-## API
+### Linux : lister les interfaces réseau
 
-### Syscalls Primitives
+```go
+ifaces, err := zcall.Interfaces()
+if err != nil {
+	return err
+}
+```
+
+## Types/Opérations
+
+### Syscalls primitives
 
 ```go
 // Syscall à 4 arguments
@@ -61,18 +83,32 @@ Syscall4(num, a1, a2, a3, a4 uintptr) (r1, errno uintptr)
 Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 ```
 
-### Wrappers de Commodité
+### Disponibilité des wrappers
+
+#### Disponible sur Linux et Darwin
 
 | Catégorie | Fonctions |
 |-----------|-----------|
-| I/O Basique | `Read`, `Write`, `Close` |
-| I/O Vectorisé | `Readv`, `Writev`, `Preadv`, `Pwritev`, `Preadv2`, `Pwritev2` |
-| Socket | `Socket`, `Bind`, `Listen`, `Accept`, `Accept4`, `Connect`, `Shutdown` |
-| Socket I/O | `Sendto`, `Recvfrom`, `Sendmsg`, `Recvmsg`, `Sendmmsg`, `Recvmmsg` |
-| Mémoire | `Mmap`, `Munmap`, `MemfdCreate` |
+| I/O Basique | `Read`, `Write`, `Close`, `Ioctl` |
+| I/O Vectorisé | `Readv`, `Writev`, `Preadv`, `Pwritev` |
+| Socket | `Socket`, `Bind`, `Listen`, `Accept`, `Connect`, `Shutdown`, `Socketpair` |
+| Options de Socket | `Setsockopt`, `Getsockopt`, `Getsockname`, `Getpeername` |
+| Socket I/O | `Sendto`, `Recvfrom`, `Sendmsg`, `Recvmsg` |
+| Mémoire | `Mmap`, `Munmap`, `Pipe2` |
+
+#### Linux uniquement
+
+| Catégorie | Fonctions |
+|-----------|-----------|
+| I/O Vectorisé | `Preadv2`, `Pwritev2` |
+| Socket | `Accept4` |
+| Socket I/O | `Sendmmsg`, `Recvmmsg` |
+| Réseau | `Interfaces`, `InterfaceByName`, `InterfaceByIndex` |
+| Mémoire | `MemfdCreate` |
 | Timers | `TimerfdCreate`, `TimerfdSettime`, `TimerfdGettime` |
 | Événements | `Eventfd2`, `Signalfd4` |
-| Zero-copy | `Splice`, `Tee`, `Vmsplice`, `Pipe2` |
+| Processus | `PidfdOpen`, `PidfdGetfd`, `PidfdSendSignal` |
+| Zero-copy | `Splice`, `Tee`, `Vmsplice` |
 | io_uring | `IoUringSetup`, `IoUringEnter`, `IoUringRegister` |
 
 ## Architecture
@@ -93,7 +129,7 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 └─────────────────────────────────────────────────────────┘
 ```
 
-## Plateformes Supportées
+## Support des plateformes
 
 | Architecture | Statut | Instruction |
 |--------------|--------|-------------|
@@ -102,18 +138,10 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 | linux/riscv64 | ✅ Supporté | `ECALL` |
 | linux/loong64 | ✅ Supporté | `SYSCALL` |
 | darwin/arm64 | ✅ Supporté | `SVC #0x80` |
-| freebsd/amd64 | ✅ Supporté | `SYSCALL` |
-
-## Considérations de Sécurité
-
-Puisque `zcall` contourne les hooks du scheduler Go :
-
-1. **Appels Non-Bloquants** : Préférez les syscalls non-bloquants avec des vérifications de disponibilité
-2. **Validité des Pointeurs** : Assurez-vous que les pointeurs restent valides pendant l'exécution du syscall
-3. **Gestion des Erreurs** : Vérifiez errno ; utilisez `zcall.Errno(errno)` pour la conversion d'erreurs
+| freebsd/amd64 | ⚠ Expérimental, non testé | `SYSCALL` |
 
 ## Licence
 
 MIT — voir [LICENSE](./LICENSE).
 
-©2025 Hayabusa Cloud Co., Ltd.
+©2025 [Hayabusa Cloud Co., Ltd.](https://code.hybscloud.com)

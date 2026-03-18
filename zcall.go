@@ -12,6 +12,58 @@ import (
 	"code.hybscloud.com/zcall/internal"
 )
 
+type ifreq struct {
+	name [IFNAMSIZ]byte
+	data [24]byte
+}
+
+type sockaddrNetlink struct {
+	Family uint16
+	Pad    uint16
+	Pid    uint32
+	Groups uint32
+}
+
+type nlMsghdr struct {
+	Len   uint32
+	Type  uint16
+	Flags uint16
+	Seq   uint32
+	Pid   uint32
+}
+
+type rtGenmsg struct {
+	Family uint8
+}
+
+type ifInfomsg struct {
+	Family uint8
+	_      uint8
+	Type   uint16
+	Index  int32
+	Flags  uint32
+	Change uint32
+}
+
+type rtAttr struct {
+	Len  uint16
+	Type uint16
+}
+
+// LinkInfo contains raw Linux link-table data returned by netlink.
+type LinkInfo struct {
+	Index        int
+	MTU          int
+	Name         string
+	HardwareAddr []byte
+	Flags        uint32
+}
+
+const (
+	nlmsgAlignTo = 4
+	rtaAlignTo   = 4
+)
+
 // Syscall4 executes a syscall with up to 4 arguments.
 func Syscall4(num, a1, a2, a3, a4 uintptr) (r1, errno uintptr) {
 	return internal.RawSyscall4(num, a1, a2, a3, a4)
@@ -47,6 +99,214 @@ func Write(fd uintptr, buf []byte) (n uintptr, errno uintptr) {
 // Socket creates a socket.
 func Socket(domain, typ, protocol uintptr) (fd uintptr, errno uintptr) {
 	return Syscall4(SYS_SOCKET, domain, typ, protocol, 0)
+}
+
+// Ioctl executes an ioctl syscall.
+func Ioctl(fd, req uintptr, arg unsafe.Pointer) (errno uintptr) {
+	_, errno = Syscall4(SYS_IOCTL, fd, req, uintptr(noescape(arg)), 0)
+	return
+}
+
+// Interfaces returns the current Linux network link table.
+func Interfaces() ([]LinkInfo, error) {
+	fd, pid, err := openRouteNetlink()
+	if err != nil {
+		return nil, err
+	}
+	defer Close(fd)
+
+	const seq = 1
+	if err := sendNetlinkGetLinkDump(fd, seq); err != nil {
+		return nil, err
+	}
+	return recvLinks(fd, pid, seq)
+}
+
+// InterfaceByName resolves a network interface name from the Linux link table.
+func InterfaceByName(name string) (*LinkInfo, error) {
+	if name == "" || len(name) >= IFNAMSIZ {
+		return nil, Errno(EINVAL)
+	}
+	links, err := Interfaces()
+	if err != nil {
+		return nil, err
+	}
+	for i := range links {
+		if links[i].Name == name {
+			return &links[i], nil
+		}
+	}
+	return nil, Errno(ENODEV)
+}
+
+// InterfaceByIndex resolves a network interface index from the Linux link table.
+func InterfaceByIndex(index int) (*LinkInfo, error) {
+	if index <= 0 {
+		return nil, Errno(EINVAL)
+	}
+	links, err := Interfaces()
+	if err != nil {
+		return nil, err
+	}
+	for i := range links {
+		if links[i].Index == index {
+			return &links[i], nil
+		}
+	}
+	return nil, Errno(ENODEV)
+}
+
+// IfNameToIndex resolves a network interface name to its kernel index.
+func IfNameToIndex(name string) (uint32, error) {
+	link, err := InterfaceByName(name)
+	if err != nil {
+		return 0, err
+	}
+	return uint32(link.Index), nil
+}
+
+func openRouteNetlink() (uintptr, uint32, error) {
+	fd, errno := Socket(AF_NETLINK, SOCK_RAW|SOCK_CLOEXEC, NETLINK_ROUTE)
+	if errno != 0 {
+		return 0, 0, Errno(errno)
+	}
+
+	sa := sockaddrNetlink{Family: AF_NETLINK}
+	if errno = Bind(fd, unsafe.Pointer(&sa), uintptr(unsafe.Sizeof(sa))); errno != 0 {
+		Close(fd)
+		return 0, 0, Errno(errno)
+	}
+
+	var local sockaddrNetlink
+	localLen := uint32(unsafe.Sizeof(local))
+	if errno = Getsockname(fd, unsafe.Pointer(&local), unsafe.Pointer(&localLen)); errno != 0 {
+		Close(fd)
+		return 0, 0, Errno(errno)
+	}
+	return fd, local.Pid, nil
+}
+
+func sendNetlinkGetLinkDump(fd uintptr, seq uint32) error {
+	const (
+		nlmsgHdrLen   = uint32(unsafe.Sizeof(nlMsghdr{}))
+		rtGenmsgSize  = uint32(unsafe.Sizeof(rtGenmsg{}))
+		requestLength = nlmsgHdrLen + rtGenmsgSize
+	)
+
+	var req [requestLength]byte
+	hdr := (*nlMsghdr)(unsafe.Pointer(&req[0]))
+	hdr.Len = requestLength
+	hdr.Type = RTM_GETLINK
+	hdr.Flags = NLM_F_REQUEST | NLM_F_DUMP
+	hdr.Seq = seq
+	(*rtGenmsg)(unsafe.Pointer(&req[nlmsgHdrLen])).Family = AF_UNSPEC
+
+	sa := sockaddrNetlink{Family: AF_NETLINK}
+	if _, errno := Sendto(fd, req[:], 0, unsafe.Pointer(&sa), uintptr(unsafe.Sizeof(sa))); errno != 0 {
+		return Errno(errno)
+	}
+	return nil
+}
+
+func recvLinks(fd uintptr, pid, seq uint32) ([]LinkInfo, error) {
+	buf := make([]byte, 64*1024)
+	links := make([]LinkInfo, 0, 16)
+	for {
+		n, errno := Recvfrom(fd, buf, 0, nil, nil)
+		if errno != 0 {
+			return nil, Errno(errno)
+		}
+		if int(n) < int(unsafe.Sizeof(nlMsghdr{})) {
+			return nil, Errno(EINVAL)
+		}
+
+		msgs := buf[:n]
+		for len(msgs) >= int(unsafe.Sizeof(nlMsghdr{})) {
+			hdr := (*nlMsghdr)(unsafe.Pointer(&msgs[0]))
+			msgLen := int(hdr.Len)
+			alignedLen := nlmsgAlignOf(msgLen)
+			if msgLen < int(unsafe.Sizeof(nlMsghdr{})) || alignedLen > len(msgs) {
+				return nil, Errno(EINVAL)
+			}
+			if hdr.Seq != seq || hdr.Pid != pid {
+				return nil, Errno(EINVAL)
+			}
+
+			payload := msgs[unsafe.Sizeof(nlMsghdr{}):msgLen]
+			switch hdr.Type {
+			case NLMSG_DONE:
+				return links, nil
+			case NLMSG_ERROR:
+				if len(payload) < 4 {
+					return nil, Errno(EINVAL)
+				}
+				errno := *(*int32)(unsafe.Pointer(&payload[0]))
+				if errno >= 0 {
+					return nil, Errno(EINVAL)
+				}
+				return nil, Errno(-errno)
+			case RTM_NEWLINK:
+				link, ok, err := parseLinkInfo(payload)
+				if err != nil {
+					return nil, err
+				}
+				if ok {
+					links = append(links, link)
+				}
+			}
+
+			msgs = msgs[alignedLen:]
+		}
+	}
+}
+
+func parseLinkInfo(payload []byte) (LinkInfo, bool, error) {
+	if len(payload) < int(unsafe.Sizeof(ifInfomsg{})) {
+		return LinkInfo{}, false, nil
+	}
+	ifim := (*ifInfomsg)(unsafe.Pointer(&payload[0]))
+	if ifim.Index <= 0 {
+		return LinkInfo{}, false, nil
+	}
+	link := LinkInfo{Index: int(ifim.Index), Flags: ifim.Flags}
+	attrs := payload[unsafe.Sizeof(ifInfomsg{}):]
+	for len(attrs) >= int(unsafe.Sizeof(rtAttr{})) {
+		attr := (*rtAttr)(unsafe.Pointer(&attrs[0]))
+		attrLen := int(attr.Len)
+		alignedLen := rtaAlignOf(attrLen)
+		if attrLen < int(unsafe.Sizeof(rtAttr{})) || alignedLen > len(attrs) {
+			return LinkInfo{}, false, Errno(EINVAL)
+		}
+		value := attrs[unsafe.Sizeof(rtAttr{}):attrLen]
+		switch attr.Type {
+		case IFLA_IFNAME:
+			if len(value) != 0 && value[len(value)-1] == 0 {
+				value = value[:len(value)-1]
+			}
+			link.Name = string(value)
+		case IFLA_MTU:
+			if len(value) >= 4 {
+				link.MTU = int(*(*uint32)(unsafe.Pointer(&value[0])))
+			}
+		case IFLA_ADDRESS:
+			if len(value) != 0 {
+				link.HardwareAddr = append([]byte(nil), value...)
+			}
+		}
+		attrs = attrs[alignedLen:]
+	}
+	if link.Name == "" {
+		return LinkInfo{}, false, nil
+	}
+	return link, true, nil
+}
+
+func nlmsgAlignOf(length int) int {
+	return (length + nlmsgAlignTo - 1) & ^(nlmsgAlignTo - 1)
+}
+
+func rtaAlignOf(length int) int {
+	return (length + rtaAlignTo - 1) & ^(rtaAlignTo - 1)
 }
 
 // Bind binds a socket to an address.

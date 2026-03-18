@@ -14,6 +14,7 @@ const (
 	SYS_CLOSE     = 57
 	SYS_READ      = 63
 	SYS_WRITE     = 64
+	SYS_IOCTL     = 29
 	SYS_FSTAT     = 80
 	SYS_MUNMAP    = 215
 	SYS_MMAP      = 222
@@ -64,6 +65,7 @@ const (
 	SYS_IO_URING_SETUP    = 425
 	SYS_IO_URING_ENTER    = 426
 	SYS_IO_URING_REGISTER = 427
+	SYS_PRLIMIT64         = 261
 
 	// signalfd, pidfd, memfd
 	SYS_SIGNALFD4         = 74

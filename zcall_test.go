@@ -8,6 +8,7 @@ package zcall_test
 
 import (
 	"errors"
+	"net"
 	"testing"
 	"time"
 	"unsafe"
@@ -16,12 +17,472 @@ import (
 	"code.hybscloud.com/zcall"
 )
 
+func TestIfNameToIndex(t *testing.T) {
+	iface, err := net.InterfaceByName("lo")
+	if err != nil {
+		t.Fatalf("net.InterfaceByName(lo) failed: %v", err)
+	}
+
+	index, err := zcall.IfNameToIndex("lo")
+	if err != nil {
+		t.Fatalf("IfNameToIndex(lo) failed: %v", err)
+	}
+	if index != uint32(iface.Index) {
+		t.Fatalf("IfNameToIndex(lo)=%d, want %d", index, iface.Index)
+	}
+}
+
+func TestInterfacesAndInterfaceLookups(t *testing.T) {
+	iface, err := net.InterfaceByName("lo")
+	if err != nil {
+		t.Fatalf("net.InterfaceByName(lo) failed: %v", err)
+	}
+
+	links, err := zcall.Interfaces()
+	if err != nil {
+		t.Fatalf("Interfaces() failed: %v", err)
+	}
+	if len(links) == 0 {
+		t.Fatal("Interfaces() returned no links")
+	}
+
+	var found bool
+	for _, link := range links {
+		if link.Name == "lo" {
+			found = true
+			if link.Index != iface.Index {
+				t.Fatalf("Interfaces()[lo].Index=%d, want %d", link.Index, iface.Index)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Fatal("Interfaces() did not include loopback")
+	}
+
+	byName, err := zcall.InterfaceByName("lo")
+	if err != nil {
+		t.Fatalf("InterfaceByName(lo) failed: %v", err)
+	}
+	if byName.Index != iface.Index {
+		t.Fatalf("InterfaceByName(lo).Index=%d, want %d", byName.Index, iface.Index)
+	}
+
+	byIndex, err := zcall.InterfaceByIndex(iface.Index)
+	if err != nil {
+		t.Fatalf("InterfaceByIndex(%d) failed: %v", iface.Index, err)
+	}
+	if byIndex.Name != iface.Name {
+		t.Fatalf("InterfaceByIndex(%d).Name=%q, want %q", iface.Index, byIndex.Name, iface.Name)
+	}
+}
+
+func TestIfNameToIndexRejectsInvalidName(t *testing.T) {
+	if _, err := zcall.IfNameToIndex(""); !errors.Is(err, zcall.Errno(zcall.EINVAL)) {
+		t.Fatalf("IfNameToIndex(%q) error = %v, want EINVAL", "", err)
+	}
+
+	tooLong := "0123456789abcdef"
+	if _, err := zcall.IfNameToIndex(tooLong); !errors.Is(err, zcall.Errno(zcall.EINVAL)) {
+		t.Fatalf("IfNameToIndex(%q) error = %v, want EINVAL", tooLong, err)
+	}
+}
+
+func TestInterfaceLookupsRejectInvalidInput(t *testing.T) {
+	if _, err := zcall.InterfaceByName(""); !errors.Is(err, zcall.Errno(zcall.EINVAL)) {
+		t.Fatalf("InterfaceByName(empty) error = %v, want EINVAL", err)
+	}
+	if _, err := zcall.InterfaceByIndex(0); !errors.Is(err, zcall.Errno(zcall.EINVAL)) {
+		t.Fatalf("InterfaceByIndex(0) error = %v, want EINVAL", err)
+	}
+}
+
 // noescape hides a pointer from escape analysis.
 // Used to safely convert uintptr (from mmap) to unsafe.Pointer.
 //
 //go:linkname noescape runtime.noescape
 //go:nosplit
 func noescape(p unsafe.Pointer) unsafe.Pointer
+
+//go:linkname openRouteNetlink code.hybscloud.com/zcall.openRouteNetlink
+func openRouteNetlink() (uintptr, uint32, error)
+
+//go:linkname sendNetlinkGetLinkDump code.hybscloud.com/zcall.sendNetlinkGetLinkDump
+func sendNetlinkGetLinkDump(fd uintptr, seq uint32) error
+
+//go:linkname recvLinks code.hybscloud.com/zcall.recvLinks
+func recvLinks(fd uintptr, pid, seq uint32) ([]zcall.LinkInfo, error)
+
+//go:linkname parseLinkInfo code.hybscloud.com/zcall.parseLinkInfo
+func parseLinkInfo(payload []byte) (zcall.LinkInfo, bool, error)
+
+//go:linkname nlmsgAlignOf code.hybscloud.com/zcall.nlmsgAlignOf
+func nlmsgAlignOf(length int) int
+
+//go:linkname rtaAlignOf code.hybscloud.com/zcall.rtaAlignOf
+func rtaAlignOf(length int) int
+
+type ifreq struct {
+	name [zcall.IFNAMSIZ]byte
+	data [24]byte
+}
+
+type sockaddrNetlink struct {
+	Family uint16
+	Pad    uint16
+	Pid    uint32
+	Groups uint32
+}
+
+type nlMsghdr struct {
+	Len   uint32
+	Type  uint16
+	Flags uint16
+	Seq   uint32
+	Pid   uint32
+}
+
+type ifInfomsg struct {
+	Family uint8
+	_      uint8
+	Type   uint16
+	Index  int32
+	Flags  uint32
+	Change uint32
+}
+
+type rtAttr struct {
+	Len  uint16
+	Type uint16
+}
+
+func TestOpenRouteNetlink(t *testing.T) {
+	fd, pid, err := openRouteNetlink()
+	if err != nil {
+		t.Fatalf("openRouteNetlink() failed: %v", err)
+	}
+	defer zcall.Close(fd)
+
+	if fd == 0 || fd == ^uintptr(0) {
+		t.Fatalf("openRouteNetlink() fd = %d, want valid descriptor", fd)
+	}
+	if pid == 0 {
+		t.Fatal("openRouteNetlink() pid = 0, want assigned port ID")
+	}
+}
+
+func TestSendNetlinkGetLinkDumpRejectsInvalidFD(t *testing.T) {
+	if err := sendNetlinkGetLinkDump(^uintptr(0), 3); !errors.Is(err, zcall.Errno(zcall.EBADF)) {
+		t.Fatalf("sendNetlinkGetLinkDump() error = %v, want EBADF", err)
+	}
+}
+
+func TestInterfaceLookupsNotFound(t *testing.T) {
+	if _, err := zcall.InterfaceByName("missing0"); !errors.Is(err, zcall.Errno(zcall.ENODEV)) {
+		t.Fatalf("InterfaceByName(missing) error = %v, want ENODEV", err)
+	}
+	if _, err := zcall.InterfaceByIndex(1 << 30); !errors.Is(err, zcall.Errno(zcall.ENODEV)) {
+		t.Fatalf("InterfaceByIndex(missing) error = %v, want ENODEV", err)
+	}
+}
+
+func TestRecvLinksRejectsInvalidFD(t *testing.T) {
+	_, err := recvLinks(^uintptr(0), 1, 1)
+	if !errors.Is(err, zcall.Errno(zcall.EBADF)) {
+		t.Fatalf("recvLinks() error = %v, want EBADF", err)
+	}
+}
+
+func TestIoctlSIOCGIFINDEX(t *testing.T) {
+	fd, errno := zcall.Socket(zcall.AF_INET, zcall.SOCK_DGRAM|zcall.SOCK_CLOEXEC, 0)
+	if errno != 0 {
+		t.Fatalf("Socket() errno = %v", zcall.Errno(errno))
+	}
+	defer zcall.Close(fd)
+
+	var req ifreq
+	copy(req.name[:], "lo")
+
+	if errno := zcall.Ioctl(fd, zcall.SIOCGIFINDEX, unsafe.Pointer(&req)); errno != 0 {
+		t.Fatalf("Ioctl(SIOCGIFINDEX) errno = %v", zcall.Errno(errno))
+	}
+
+	if index := *(*int32)(unsafe.Pointer(&req.data[0])); index <= 0 {
+		t.Fatalf("Ioctl(SIOCGIFINDEX) index = %d, want > 0", index)
+	}
+}
+
+func TestRecvLinksParsesMultipartReply(t *testing.T) {
+	reader, writer := mustSocketpairDatagram(t)
+	defer zcall.Close(reader)
+	defer zcall.Close(writer)
+
+	const (
+		pid = 77
+		seq = 9
+	)
+
+	payload := appendIfInfoPayload(ifInfomsg{Index: 5, Flags: zcall.IFF_UP | zcall.IFF_MULTICAST},
+		appendRtAttr(zcall.IFLA_IFNAME, append([]byte("eth-test"), 0)),
+		appendRtAttr(zcall.IFLA_MTU, uint32Bytes(1500)),
+	)
+	msg := appendNetlinkMessage(nil, nlMsghdr{Type: zcall.RTM_NEWLINK, Seq: seq, Pid: pid}, payload)
+	msg = appendNetlinkMessage(msg, nlMsghdr{Type: zcall.NLMSG_DONE, Seq: seq, Pid: pid}, nil)
+	writeAll(t, writer, msg)
+
+	links, err := recvLinks(reader, pid, seq)
+	if err != nil {
+		t.Fatalf("recvLinks() error = %v", err)
+	}
+	if len(links) != 1 {
+		t.Fatalf("recvLinks() len = %d, want 1", len(links))
+	}
+	if links[0].Name != "eth-test" || links[0].Index != 5 || links[0].MTU != 1500 {
+		t.Fatalf("recvLinks() link = %+v, want parsed attributes", links[0])
+	}
+}
+
+func TestRecvLinksRejectsMalformedMessages(t *testing.T) {
+	tests := []struct {
+		name    string
+		message []byte
+		pid     uint32
+		seq     uint32
+		wantErr zcall.Errno
+	}{
+		{
+			name:    "short read",
+			message: []byte{0x01},
+			pid:     1,
+			seq:     1,
+			wantErr: zcall.EINVAL,
+		},
+		{
+			name:    "sequence mismatch",
+			message: appendNetlinkMessage(nil, nlMsghdr{Type: zcall.NLMSG_DONE, Seq: 2, Pid: 1}, nil),
+			pid:     1,
+			seq:     1,
+			wantErr: zcall.EINVAL,
+		},
+		{
+			name:    "invalid message length",
+			message: rawNetlinkMessage(nlMsghdr{Len: uint32(unsafe.Sizeof(nlMsghdr{})) - 1, Type: zcall.NLMSG_DONE, Seq: 1, Pid: 1}, nil),
+			pid:     1,
+			seq:     1,
+			wantErr: zcall.EINVAL,
+		},
+		{
+			name:    "short nlmsg error payload",
+			message: appendNetlinkMessage(nil, nlMsghdr{Type: zcall.NLMSG_ERROR, Seq: 1, Pid: 1}, []byte{0x01, 0x02, 0x03}),
+			pid:     1,
+			seq:     1,
+			wantErr: zcall.EINVAL,
+		},
+		{
+			name:    "positive nlmsg error payload",
+			message: appendNetlinkMessage(nil, nlMsghdr{Type: zcall.NLMSG_ERROR, Seq: 1, Pid: 1}, int32Bytes(0)),
+			pid:     1,
+			seq:     1,
+			wantErr: zcall.EINVAL,
+		},
+		{
+			name:    "negative nlmsg error payload",
+			message: appendNetlinkMessage(nil, nlMsghdr{Type: zcall.NLMSG_ERROR, Seq: 1, Pid: 1}, int32Bytes(-int32(zcall.ENODEV))),
+			pid:     1,
+			seq:     1,
+			wantErr: zcall.ENODEV,
+		},
+		{
+			name: "newlink parse error",
+			message: appendNetlinkMessage(nil, nlMsghdr{Type: zcall.RTM_NEWLINK, Seq: 1, Pid: 1},
+				appendIfInfoPayload(ifInfomsg{Index: 1}, malformedRtAttr(2))),
+			pid:     1,
+			seq:     1,
+			wantErr: zcall.EINVAL,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader, writer := mustSocketpairDatagram(t)
+			defer zcall.Close(reader)
+			defer zcall.Close(writer)
+
+			writeAll(t, writer, tt.message)
+
+			_, err := recvLinks(reader, tt.pid, tt.seq)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("recvLinks() error = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestParseLinkInfoParsesCoreAttributes(t *testing.T) {
+	payload := appendIfInfoPayload(ifInfomsg{Index: 7, Flags: zcall.IFF_UP | zcall.IFF_MULTICAST},
+		appendRtAttr(zcall.IFLA_IFNAME, append([]byte("eth0"), 0)),
+		appendRtAttr(zcall.IFLA_MTU, uint32Bytes(9000)),
+		appendRtAttr(zcall.IFLA_ADDRESS, []byte{0x02, 0x42, 0xac, 0x11, 0x00, 0x02}),
+	)
+
+	link, ok, err := parseLinkInfo(payload)
+	if err != nil {
+		t.Fatalf("parseLinkInfo() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("parseLinkInfo() reported !ok")
+	}
+	if link.Index != 7 {
+		t.Fatalf("parseLinkInfo().Index = %d, want 7", link.Index)
+	}
+	if link.Flags != zcall.IFF_UP|zcall.IFF_MULTICAST {
+		t.Fatalf("parseLinkInfo().Flags = %#x, want %#x", link.Flags, zcall.IFF_UP|zcall.IFF_MULTICAST)
+	}
+	if link.Name != "eth0" {
+		t.Fatalf("parseLinkInfo().Name = %q, want %q", link.Name, "eth0")
+	}
+	if link.MTU != 9000 {
+		t.Fatalf("parseLinkInfo().MTU = %d, want 9000", link.MTU)
+	}
+	if got := len(link.HardwareAddr); got != 6 {
+		t.Fatalf("parseLinkInfo().HardwareAddr len = %d, want 6", got)
+	}
+	if link.HardwareAddr[0] != 0x02 || link.HardwareAddr[5] != 0x02 {
+		t.Fatalf("parseLinkInfo().HardwareAddr = %v, want preserved bytes", link.HardwareAddr)
+	}
+}
+
+func TestParseLinkInfoRejectsMalformedAttribute(t *testing.T) {
+	payload := appendIfInfoPayload(ifInfomsg{Index: 1}, malformedRtAttr(2))
+
+	_, _, err := parseLinkInfo(payload)
+	if !errors.Is(err, zcall.EINVAL) {
+		t.Fatalf("parseLinkInfo() error = %v, want EINVAL", err)
+	}
+}
+
+func TestParseLinkInfoSkipsUnnamedOrInvalidLinks(t *testing.T) {
+	t.Run("short payload", func(t *testing.T) {
+		_, ok, err := parseLinkInfo(make([]byte, unsafe.Sizeof(ifInfomsg{})-1))
+		if err != nil {
+			t.Fatalf("parseLinkInfo(short) error = %v", err)
+		}
+		if ok {
+			t.Fatal("parseLinkInfo(short) ok = true, want false")
+		}
+	})
+
+	t.Run("invalid index", func(t *testing.T) {
+		payload := appendIfInfoPayload(ifInfomsg{Index: 0}, appendRtAttr(zcall.IFLA_IFNAME, append([]byte("lo"), 0)))
+		_, ok, err := parseLinkInfo(payload)
+		if err != nil {
+			t.Fatalf("parseLinkInfo(invalid index) error = %v", err)
+		}
+		if ok {
+			t.Fatal("parseLinkInfo(invalid index) ok = true, want false")
+		}
+	})
+
+	t.Run("missing name", func(t *testing.T) {
+		payload := appendIfInfoPayload(ifInfomsg{Index: 2}, appendRtAttr(zcall.IFLA_MTU, uint32Bytes(1500)))
+		_, ok, err := parseLinkInfo(payload)
+		if err != nil {
+			t.Fatalf("parseLinkInfo(missing name) error = %v", err)
+		}
+		if ok {
+			t.Fatal("parseLinkInfo(missing name) ok = true, want false")
+		}
+	})
+}
+
+func TestAlignmentHelpers(t *testing.T) {
+	if got := nlmsgAlignOf(17); got != 20 {
+		t.Fatalf("nlmsgAlignOf(17) = %d, want 20", got)
+	}
+	if got := rtaAlignOf(5); got != 8 {
+		t.Fatalf("rtaAlignOf(5) = %d, want 8", got)
+	}
+}
+
+func appendIfInfoPayload(info ifInfomsg, attrs ...[]byte) []byte {
+	payload := make([]byte, unsafe.Sizeof(info))
+	*(*ifInfomsg)(unsafe.Pointer(&payload[0])) = info
+	for _, attr := range attrs {
+		payload = append(payload, attr...)
+	}
+	return payload
+}
+
+func appendRtAttr(typ uint16, value []byte) []byte {
+	const hdrSize = int(unsafe.Sizeof(rtAttr{}))
+	attrLen := hdrSize + len(value)
+	alignedLen := rtaAlignOf(attrLen)
+	buf := make([]byte, alignedLen)
+	attr := (*rtAttr)(unsafe.Pointer(&buf[0]))
+	attr.Len = uint16(attrLen)
+	attr.Type = typ
+	copy(buf[hdrSize:hdrSize+len(value)], value)
+	return buf
+}
+
+func malformedRtAttr(length uint16) []byte {
+	buf := make([]byte, unsafe.Sizeof(rtAttr{}))
+	attr := (*rtAttr)(unsafe.Pointer(&buf[0]))
+	attr.Len = length
+	attr.Type = zcall.IFLA_IFNAME
+	return buf
+}
+
+func uint32Bytes(v uint32) []byte {
+	buf := make([]byte, 4)
+	*(*uint32)(unsafe.Pointer(&buf[0])) = v
+	return buf
+}
+
+func int32Bytes(v int32) []byte {
+	buf := make([]byte, 4)
+	*(*int32)(unsafe.Pointer(&buf[0])) = v
+	return buf
+}
+
+func mustSocketpairDatagram(t *testing.T) (uintptr, uintptr) {
+	t.Helper()
+	var fds [2]int32
+	if errno := zcall.Socketpair(zcall.AF_UNIX, zcall.SOCK_DGRAM|zcall.SOCK_CLOEXEC, 0, &fds); errno != 0 {
+		t.Fatalf("Socketpair() errno = %v", zcall.Errno(errno))
+	}
+	return uintptr(fds[0]), uintptr(fds[1])
+}
+
+func writeAll(t *testing.T, fd uintptr, msg []byte) {
+	t.Helper()
+	n, errno := zcall.Write(fd, msg)
+	if errno != 0 {
+		t.Fatalf("Write() errno = %v", zcall.Errno(errno))
+	}
+	if n != uintptr(len(msg)) {
+		t.Fatalf("Write() = %d, want %d", n, len(msg))
+	}
+}
+
+func appendNetlinkMessage(dst []byte, hdr nlMsghdr, payload []byte) []byte {
+	const hdrSize = int(unsafe.Sizeof(nlMsghdr{}))
+	hdr.Len = uint32(hdrSize + len(payload))
+	alignedLen := nlmsgAlignOf(int(hdr.Len))
+	start := len(dst)
+	dst = append(dst, make([]byte, alignedLen)...)
+	msg := dst[start : start+alignedLen]
+	*(*nlMsghdr)(unsafe.Pointer(&msg[0])) = hdr
+	copy(msg[hdrSize:hdrSize+len(payload)], payload)
+	return dst
+}
+
+func rawNetlinkMessage(hdr nlMsghdr, payload []byte) []byte {
+	buf := make([]byte, int(unsafe.Sizeof(nlMsghdr{}))+len(payload))
+	*(*nlMsghdr)(unsafe.Pointer(&buf[0])) = hdr
+	copy(buf[int(unsafe.Sizeof(nlMsghdr{})):], payload)
+	return buf
+}
 
 func TestEventfd2(t *testing.T) {
 	fd, errno := zcall.Eventfd2(0, zcall.EFD_NONBLOCK|zcall.EFD_CLOEXEC)
