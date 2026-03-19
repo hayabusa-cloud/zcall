@@ -50,8 +50,8 @@ type rtAttr struct {
 	Type uint16
 }
 
-// LinkInfo contains raw Linux link-table data returned by netlink.
-type LinkInfo struct {
+// Link is a raw netlink record for a network link (ifinfomsg + rtattrs).
+type Link struct {
 	Index        int
 	MTU          int
 	Name         string
@@ -107,8 +107,8 @@ func Ioctl(fd, req uintptr, arg unsafe.Pointer) (errno uintptr) {
 	return
 }
 
-// Interfaces returns the current Linux network link table.
-func Interfaces() ([]LinkInfo, error) {
+// Links returns the current Linux network link table.
+func Links() ([]Link, error) {
 	fd, pid, err := openRouteNetlink()
 	if err != nil {
 		return nil, err
@@ -122,12 +122,12 @@ func Interfaces() ([]LinkInfo, error) {
 	return recvLinks(fd, pid, seq)
 }
 
-// InterfaceByName resolves a network interface name from the Linux link table.
-func InterfaceByName(name string) (*LinkInfo, error) {
+// LinkByName resolves a network link by name from the Linux link table.
+func LinkByName(name string) (*Link, error) {
 	if name == "" || len(name) >= IFNAMSIZ {
 		return nil, Errno(EINVAL)
 	}
-	links, err := Interfaces()
+	links, err := Links()
 	if err != nil {
 		return nil, err
 	}
@@ -139,12 +139,12 @@ func InterfaceByName(name string) (*LinkInfo, error) {
 	return nil, Errno(ENODEV)
 }
 
-// InterfaceByIndex resolves a network interface index from the Linux link table.
-func InterfaceByIndex(index int) (*LinkInfo, error) {
+// LinkByIndex resolves a network link by index from the Linux link table.
+func LinkByIndex(index int) (*Link, error) {
 	if index <= 0 {
 		return nil, Errno(EINVAL)
 	}
-	links, err := Interfaces()
+	links, err := Links()
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,7 @@ func InterfaceByIndex(index int) (*LinkInfo, error) {
 
 // IfNameToIndex resolves a network interface name to its kernel index.
 func IfNameToIndex(name string) (uint32, error) {
-	link, err := InterfaceByName(name)
+	link, err := LinkByName(name)
 	if err != nil {
 		return 0, err
 	}
@@ -208,9 +208,9 @@ func sendNetlinkGetLinkDump(fd uintptr, seq uint32) error {
 	return nil
 }
 
-func recvLinks(fd uintptr, pid, seq uint32) ([]LinkInfo, error) {
+func recvLinks(fd uintptr, pid, seq uint32) ([]Link, error) {
 	buf := make([]byte, 64*1024)
-	links := make([]LinkInfo, 0, 16)
+	links := make([]Link, 0, 16)
 	for {
 		n, errno := Recvfrom(fd, buf, 0, nil, nil)
 		if errno != 0 {
@@ -246,7 +246,7 @@ func recvLinks(fd uintptr, pid, seq uint32) ([]LinkInfo, error) {
 				}
 				return nil, Errno(-errno)
 			case RTM_NEWLINK:
-				link, ok, err := parseLinkInfo(payload)
+				link, ok, err := parseLink(payload)
 				if err != nil {
 					return nil, err
 				}
@@ -260,22 +260,22 @@ func recvLinks(fd uintptr, pid, seq uint32) ([]LinkInfo, error) {
 	}
 }
 
-func parseLinkInfo(payload []byte) (LinkInfo, bool, error) {
+func parseLink(payload []byte) (Link, bool, error) {
 	if len(payload) < int(unsafe.Sizeof(ifInfomsg{})) {
-		return LinkInfo{}, false, nil
+		return Link{}, false, nil
 	}
 	ifim := (*ifInfomsg)(unsafe.Pointer(&payload[0]))
 	if ifim.Index <= 0 {
-		return LinkInfo{}, false, nil
+		return Link{}, false, nil
 	}
-	link := LinkInfo{Index: int(ifim.Index), Flags: ifim.Flags}
+	link := Link{Index: int(ifim.Index), Flags: ifim.Flags}
 	attrs := payload[unsafe.Sizeof(ifInfomsg{}):]
 	for len(attrs) >= int(unsafe.Sizeof(rtAttr{})) {
 		attr := (*rtAttr)(unsafe.Pointer(&attrs[0]))
 		attrLen := int(attr.Len)
 		alignedLen := rtaAlignOf(attrLen)
 		if attrLen < int(unsafe.Sizeof(rtAttr{})) || alignedLen > len(attrs) {
-			return LinkInfo{}, false, Errno(EINVAL)
+			return Link{}, false, Errno(EINVAL)
 		}
 		value := attrs[unsafe.Sizeof(rtAttr{}):attrLen]
 		switch attr.Type {
@@ -296,7 +296,7 @@ func parseLinkInfo(payload []byte) (LinkInfo, bool, error) {
 		attrs = attrs[alignedLen:]
 	}
 	if link.Name == "" {
-		return LinkInfo{}, false, nil
+		return Link{}, false, nil
 	}
 	return link, true, nil
 }

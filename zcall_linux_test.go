@@ -23,7 +23,7 @@ func encodeAttr(attrType uint16, value []byte) []byte {
 	return buf
 }
 
-func TestParseLinkInfoParsesAttributes(t *testing.T) {
+func TestParseLinkParsesAttributes(t *testing.T) {
 	payload := make([]byte, int(unsafe.Sizeof(ifInfomsg{})))
 	ifim := (*ifInfomsg)(unsafe.Pointer(&payload[0]))
 	ifim.Index = 7
@@ -40,32 +40,32 @@ func TestParseLinkInfoParsesAttributes(t *testing.T) {
 		encodeAttr(IFLA_ADDRESS, []byte{0x02, 0x42, 0xac, 0x11, 0x00, 0x02})...,
 	)
 
-	link, ok, err := parseLinkInfo(payload)
+	link, ok, err := parseLink(payload)
 	if err != nil {
-		t.Fatalf("parseLinkInfo() error = %v", err)
+		t.Fatalf("parseLink() error = %v", err)
 	}
 	if !ok {
-		t.Fatal("parseLinkInfo() ok = false, want true")
+		t.Fatal("parseLink() ok = false, want true")
 	}
 	if link.Index != 7 {
-		t.Fatalf("parseLinkInfo() index = %d, want 7", link.Index)
+		t.Fatalf("parseLink() index = %d, want 7", link.Index)
 	}
 	if link.Name != "eth0" {
-		t.Fatalf("parseLinkInfo() name = %q, want %q", link.Name, "eth0")
+		t.Fatalf("parseLink() name = %q, want %q", link.Name, "eth0")
 	}
 	if link.MTU != int(mtu) {
-		t.Fatalf("parseLinkInfo() mtu = %d, want %d", link.MTU, mtu)
+		t.Fatalf("parseLink() mtu = %d, want %d", link.MTU, mtu)
 	}
 	if link.Flags != ifim.Flags {
-		t.Fatalf("parseLinkInfo() flags = %#x, want %#x", link.Flags, ifim.Flags)
+		t.Fatalf("parseLink() flags = %#x, want %#x", link.Flags, ifim.Flags)
 	}
 	wantAddr := []byte{0x02, 0x42, 0xac, 0x11, 0x00, 0x02}
 	if !reflect.DeepEqual(link.HardwareAddr, wantAddr) {
-		t.Fatalf("parseLinkInfo() hardware addr = %v, want %v", link.HardwareAddr, wantAddr)
+		t.Fatalf("parseLink() hardware addr = %v, want %v", link.HardwareAddr, wantAddr)
 	}
 }
 
-func TestParseLinkInfoRejectsMalformedAttribute(t *testing.T) {
+func TestParseLinkRejectsMalformedAttribute(t *testing.T) {
 	payload := make([]byte, int(unsafe.Sizeof(ifInfomsg{}))+int(unsafe.Sizeof(rtAttr{})))
 	ifim := (*ifInfomsg)(unsafe.Pointer(&payload[0]))
 	ifim.Index = 1
@@ -73,61 +73,61 @@ func TestParseLinkInfoRejectsMalformedAttribute(t *testing.T) {
 	attr.Len = uint16(unsafe.Sizeof(rtAttr{}) - 1)
 	attr.Type = IFLA_IFNAME
 
-	_, ok, err := parseLinkInfo(payload)
+	_, ok, err := parseLink(payload)
 	if err == nil {
-		t.Fatal("parseLinkInfo() error = nil, want error")
+		t.Fatal("parseLink() error = nil, want error")
 	}
 	if ok {
-		t.Fatal("parseLinkInfo() ok = true, want false")
+		t.Fatal("parseLink() ok = true, want false")
 	}
 	if err != Errno(EINVAL) {
-		t.Fatalf("parseLinkInfo() error = %v, want %v", err, Errno(EINVAL))
+		t.Fatalf("parseLink() error = %v, want %v", err, Errno(EINVAL))
 	}
 }
 
-func TestInterfaceLookupValidation(t *testing.T) {
-	if _, err := InterfaceByName(""); err != Errno(EINVAL) {
-		t.Fatalf("InterfaceByName(\"\") error = %v, want %v", err, Errno(EINVAL))
+func TestLinkLookupValidation(t *testing.T) {
+	if _, err := LinkByName(""); err != Errno(EINVAL) {
+		t.Fatalf("LinkByName(\"\") error = %v, want %v", err, Errno(EINVAL))
 	}
-	if _, err := InterfaceByName("0123456789abcdef"); err != Errno(EINVAL) {
-		t.Fatalf("InterfaceByName(long) error = %v, want %v", err, Errno(EINVAL))
+	if _, err := LinkByName("0123456789abcdef"); err != Errno(EINVAL) {
+		t.Fatalf("LinkByName(long) error = %v, want %v", err, Errno(EINVAL))
 	}
-	if _, err := InterfaceByIndex(0); err != Errno(EINVAL) {
-		t.Fatalf("InterfaceByIndex(0) error = %v, want %v", err, Errno(EINVAL))
+	if _, err := LinkByIndex(0); err != Errno(EINVAL) {
+		t.Fatalf("LinkByIndex(0) error = %v, want %v", err, Errno(EINVAL))
 	}
 }
 
-func TestInterfacesLookupRoundTrip(t *testing.T) {
-	links, err := Interfaces()
+func TestLinksLookupRoundTrip(t *testing.T) {
+	links, err := Links()
 	if err != nil {
-		t.Fatalf("Interfaces() error = %v", err)
+		t.Fatalf("Links() error = %v", err)
 	}
 	if len(links) == 0 {
-		t.Fatal("Interfaces() returned no links")
+		t.Fatal("Links() returned no links")
 	}
 
 	link := links[0]
 	if link.Name == "" {
-		t.Fatal("Interfaces() returned link with empty name")
+		t.Fatal("Links() returned link with empty name")
 	}
 	if link.Index <= 0 {
-		t.Fatalf("Interfaces() returned invalid index %d", link.Index)
+		t.Fatalf("Links() returned invalid index %d", link.Index)
 	}
 
-	byName, err := InterfaceByName(link.Name)
+	byName, err := LinkByName(link.Name)
 	if err != nil {
-		t.Fatalf("InterfaceByName(%q) error = %v", link.Name, err)
+		t.Fatalf("LinkByName(%q) error = %v", link.Name, err)
 	}
 	if byName.Index != link.Index {
-		t.Fatalf("InterfaceByName(%q) index = %d, want %d", link.Name, byName.Index, link.Index)
+		t.Fatalf("LinkByName(%q) index = %d, want %d", link.Name, byName.Index, link.Index)
 	}
 
-	byIndex, err := InterfaceByIndex(link.Index)
+	byIndex, err := LinkByIndex(link.Index)
 	if err != nil {
-		t.Fatalf("InterfaceByIndex(%d) error = %v", link.Index, err)
+		t.Fatalf("LinkByIndex(%d) error = %v", link.Index, err)
 	}
 	if byIndex.Name != link.Name {
-		t.Fatalf("InterfaceByIndex(%d) name = %q, want %q", link.Index, byIndex.Name, link.Name)
+		t.Fatalf("LinkByIndex(%d) name = %q, want %q", link.Index, byIndex.Name, link.Name)
 	}
 
 	index, err := IfNameToIndex(link.Name)
