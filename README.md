@@ -24,7 +24,7 @@ Language: **English** | [简体中文](./README.zh-CN.md) | [Español](./README.
 
 - Primitive entry points for 4-argument and 6-argument syscalls.
 - Wrappers for common I/O, socket, memory, and socket-option operations.
-- Linux-specific helpers for network interface queries, special file descriptors, zero-copy operations, and `io_uring`.
+- Linux-specific helpers for network link queries, special file descriptors, zero-copy operations, and `io_uring`.
 
 ## Installation
 
@@ -62,10 +62,10 @@ if errno != 0 {
 defer zcall.Close(fd)
 ```
 
-### Linux: list network interfaces
+### Linux: list network links
 
 ```go
-ifaces, err := zcall.Interfaces()
+links, err := zcall.Links()
 if err != nil {
 	return err
 }
@@ -103,7 +103,7 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 | Vectored I/O | `Preadv2`, `Pwritev2` |
 | Socket | `Accept4` |
 | Socket I/O | `Sendmmsg`, `Recvmmsg` |
-| Network | `Interfaces`, `InterfaceByName`, `InterfaceByIndex` |
+| Network | `Links`, `LinkByName`, `LinkByIndex` |
 | Memory | `MemfdCreate` |
 | Timers | `TimerfdCreate`, `TimerfdSettime`, `TimerfdGettime` |
 | Events | `Eventfd2`, `Signalfd4` |

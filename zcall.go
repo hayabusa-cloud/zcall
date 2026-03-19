@@ -156,7 +156,7 @@ func LinkByIndex(index int) (*Link, error) {
 	return nil, Errno(ENODEV)
 }
 
-// IfNameToIndex resolves a network interface name to its kernel index.
+// IfNameToIndex resolves a network link name to its kernel index.
 func IfNameToIndex(name string) (uint32, error) {
 	link, err := LinkByName(name)
 	if err != nil {

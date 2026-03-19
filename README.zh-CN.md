@@ -24,7 +24,7 @@
 
 - 提供 4 参数与 6 参数系统调用的原始入口。
 - 为常见 I/O、套接字、内存和套接字选项操作提供封装函数。
-- 提供 Linux 专用辅助函数，用于网络接口查询、特殊文件描述符、零拷贝操作以及 `io_uring`。
+- 提供 Linux 专用辅助函数，用于网络链路查询、特殊文件描述符、零拷贝操作以及 `io_uring`。
 
 ## 安装
 
@@ -62,10 +62,10 @@ if errno != 0 {
 defer zcall.Close(fd)
 ```
 
-### Linux：列出网络接口
+### Linux：列出网络链路
 
 ```go
-ifaces, err := zcall.Interfaces()
+links, err := zcall.Links()
 if err != nil {
 	return err
 }
@@ -103,7 +103,7 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 | 向量 I/O | `Preadv2`、`Pwritev2` |
 | 套接字 | `Accept4` |
 | 套接字 I/O | `Sendmmsg`、`Recvmmsg` |
-| 网络 | `Interfaces`、`InterfaceByName`、`InterfaceByIndex` |
+| 网络 | `Links`、`LinkByName`、`LinkByIndex` |
 | 内存 | `MemfdCreate` |
 | 定时器 | `TimerfdCreate`、`TimerfdSettime`、`TimerfdGettime` |
 | 事件 | `Eventfd2`、`Signalfd4` |

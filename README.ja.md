@@ -24,7 +24,7 @@ Linux、Darwin、および実験的な FreeBSD 向けの Go 低レベル syscall
 
 - 4 引数および 6 引数 syscall のプリミティブ入口。
 - 一般的な I/O、ソケット、メモリ、ソケットオプション向けのラッパー。
-- Linux 専用のネットワークインターフェース参照、特殊 FD、ゼロコピー、`io_uring` 用ヘルパー。
+- Linux 専用のネットワークリンク参照、特殊 FD、ゼロコピー、`io_uring` 用ヘルパー。
 
 ## インストール
 
@@ -62,10 +62,10 @@ if errno != 0 {
 defer zcall.Close(fd)
 ```
 
-### Linux: ネットワークインターフェースを列挙する
+### Linux: ネットワークリンクを列挙する
 
 ```go
-ifaces, err := zcall.Interfaces()
+links, err := zcall.Links()
 if err != nil {
 	return err
 }
@@ -103,7 +103,7 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 | ベクタ I/O | `Preadv2`、`Pwritev2` |
 | ソケット | `Accept4` |
 | ソケット I/O | `Sendmmsg`、`Recvmmsg` |
-| ネットワーク | `Interfaces`、`InterfaceByName`、`InterfaceByIndex` |
+| ネットワーク | `Links`、`LinkByName`、`LinkByIndex` |
 | メモリ | `MemfdCreate` |
 | タイマー | `TimerfdCreate`、`TimerfdSettime`、`TimerfdGettime` |
 | イベント | `Eventfd2`、`Signalfd4` |
