@@ -32,18 +32,18 @@ func TestIfNameToIndex(t *testing.T) {
 	}
 }
 
-func TestInterfacesAndInterfaceLookups(t *testing.T) {
+func TestLinksAndLinkLookups(t *testing.T) {
 	iface, err := net.InterfaceByName("lo")
 	if err != nil {
 		t.Fatalf("net.InterfaceByName(lo) failed: %v", err)
 	}
 
-	links, err := zcall.Interfaces()
+	links, err := zcall.Links()
 	if err != nil {
-		t.Fatalf("Interfaces() failed: %v", err)
+		t.Fatalf("Links() failed: %v", err)
 	}
 	if len(links) == 0 {
-		t.Fatal("Interfaces() returned no links")
+		t.Fatal("Links() returned no links")
 	}
 
 	var found bool
@@ -51,29 +51,29 @@ func TestInterfacesAndInterfaceLookups(t *testing.T) {
 		if link.Name == "lo" {
 			found = true
 			if link.Index != iface.Index {
-				t.Fatalf("Interfaces()[lo].Index=%d, want %d", link.Index, iface.Index)
+				t.Fatalf("Links()[lo].Index=%d, want %d", link.Index, iface.Index)
 			}
 			break
 		}
 	}
 	if !found {
-		t.Fatal("Interfaces() did not include loopback")
+		t.Fatal("Links() did not include loopback")
 	}
 
-	byName, err := zcall.InterfaceByName("lo")
+	byName, err := zcall.LinkByName("lo")
 	if err != nil {
-		t.Fatalf("InterfaceByName(lo) failed: %v", err)
+		t.Fatalf("LinkByName(lo) failed: %v", err)
 	}
 	if byName.Index != iface.Index {
-		t.Fatalf("InterfaceByName(lo).Index=%d, want %d", byName.Index, iface.Index)
+		t.Fatalf("LinkByName(lo).Index=%d, want %d", byName.Index, iface.Index)
 	}
 
-	byIndex, err := zcall.InterfaceByIndex(iface.Index)
+	byIndex, err := zcall.LinkByIndex(iface.Index)
 	if err != nil {
-		t.Fatalf("InterfaceByIndex(%d) failed: %v", iface.Index, err)
+		t.Fatalf("LinkByIndex(%d) failed: %v", iface.Index, err)
 	}
 	if byIndex.Name != iface.Name {
-		t.Fatalf("InterfaceByIndex(%d).Name=%q, want %q", iface.Index, byIndex.Name, iface.Name)
+		t.Fatalf("LinkByIndex(%d).Name=%q, want %q", iface.Index, byIndex.Name, iface.Name)
 	}
 }
 
@@ -88,12 +88,12 @@ func TestIfNameToIndexRejectsInvalidName(t *testing.T) {
 	}
 }
 
-func TestInterfaceLookupsRejectInvalidInput(t *testing.T) {
-	if _, err := zcall.InterfaceByName(""); !errors.Is(err, zcall.Errno(zcall.EINVAL)) {
-		t.Fatalf("InterfaceByName(empty) error = %v, want EINVAL", err)
+func TestLinkLookupsRejectInvalidInput(t *testing.T) {
+	if _, err := zcall.LinkByName(""); !errors.Is(err, zcall.Errno(zcall.EINVAL)) {
+		t.Fatalf("LinkByName(empty) error = %v, want EINVAL", err)
 	}
-	if _, err := zcall.InterfaceByIndex(0); !errors.Is(err, zcall.Errno(zcall.EINVAL)) {
-		t.Fatalf("InterfaceByIndex(0) error = %v, want EINVAL", err)
+	if _, err := zcall.LinkByIndex(0); !errors.Is(err, zcall.Errno(zcall.EINVAL)) {
+		t.Fatalf("LinkByIndex(0) error = %v, want EINVAL", err)
 	}
 }
 
@@ -111,10 +111,10 @@ func openRouteNetlink() (uintptr, uint32, error)
 func sendNetlinkGetLinkDump(fd uintptr, seq uint32) error
 
 //go:linkname recvLinks code.hybscloud.com/zcall.recvLinks
-func recvLinks(fd uintptr, pid, seq uint32) ([]zcall.LinkInfo, error)
+func recvLinks(fd uintptr, pid, seq uint32) ([]zcall.Link, error)
 
-//go:linkname parseLinkInfo code.hybscloud.com/zcall.parseLinkInfo
-func parseLinkInfo(payload []byte) (zcall.LinkInfo, bool, error)
+//go:linkname parseLink code.hybscloud.com/zcall.parseLink
+func parseLink(payload []byte) (zcall.Link, bool, error)
 
 //go:linkname nlmsgAlignOf code.hybscloud.com/zcall.nlmsgAlignOf
 func nlmsgAlignOf(length int) int
@@ -177,12 +177,12 @@ func TestSendNetlinkGetLinkDumpRejectsInvalidFD(t *testing.T) {
 	}
 }
 
-func TestInterfaceLookupsNotFound(t *testing.T) {
-	if _, err := zcall.InterfaceByName("missing0"); !errors.Is(err, zcall.Errno(zcall.ENODEV)) {
-		t.Fatalf("InterfaceByName(missing) error = %v, want ENODEV", err)
+func TestLinkLookupsNotFound(t *testing.T) {
+	if _, err := zcall.LinkByName("missing0"); !errors.Is(err, zcall.Errno(zcall.ENODEV)) {
+		t.Fatalf("LinkByName(missing) error = %v, want ENODEV", err)
 	}
-	if _, err := zcall.InterfaceByIndex(1 << 30); !errors.Is(err, zcall.Errno(zcall.ENODEV)) {
-		t.Fatalf("InterfaceByIndex(missing) error = %v, want ENODEV", err)
+	if _, err := zcall.LinkByIndex(1 << 30); !errors.Is(err, zcall.Errno(zcall.ENODEV)) {
+		t.Fatalf("LinkByIndex(missing) error = %v, want ENODEV", err)
 	}
 }
 
@@ -318,79 +318,79 @@ func TestRecvLinksRejectsMalformedMessages(t *testing.T) {
 	}
 }
 
-func TestParseLinkInfoParsesCoreAttributes(t *testing.T) {
+func TestParseLinkParsesCoreAttributes(t *testing.T) {
 	payload := appendIfInfoPayload(ifInfomsg{Index: 7, Flags: zcall.IFF_UP | zcall.IFF_MULTICAST},
 		appendRtAttr(zcall.IFLA_IFNAME, append([]byte("eth0"), 0)),
 		appendRtAttr(zcall.IFLA_MTU, uint32Bytes(9000)),
 		appendRtAttr(zcall.IFLA_ADDRESS, []byte{0x02, 0x42, 0xac, 0x11, 0x00, 0x02}),
 	)
 
-	link, ok, err := parseLinkInfo(payload)
+	link, ok, err := parseLink(payload)
 	if err != nil {
-		t.Fatalf("parseLinkInfo() error = %v", err)
+		t.Fatalf("parseLink() error = %v", err)
 	}
 	if !ok {
-		t.Fatal("parseLinkInfo() reported !ok")
+		t.Fatal("parseLink() reported !ok")
 	}
 	if link.Index != 7 {
-		t.Fatalf("parseLinkInfo().Index = %d, want 7", link.Index)
+		t.Fatalf("parseLink().Index = %d, want 7", link.Index)
 	}
 	if link.Flags != zcall.IFF_UP|zcall.IFF_MULTICAST {
-		t.Fatalf("parseLinkInfo().Flags = %#x, want %#x", link.Flags, zcall.IFF_UP|zcall.IFF_MULTICAST)
+		t.Fatalf("parseLink().Flags = %#x, want %#x", link.Flags, zcall.IFF_UP|zcall.IFF_MULTICAST)
 	}
 	if link.Name != "eth0" {
-		t.Fatalf("parseLinkInfo().Name = %q, want %q", link.Name, "eth0")
+		t.Fatalf("parseLink().Name = %q, want %q", link.Name, "eth0")
 	}
 	if link.MTU != 9000 {
-		t.Fatalf("parseLinkInfo().MTU = %d, want 9000", link.MTU)
+		t.Fatalf("parseLink().MTU = %d, want 9000", link.MTU)
 	}
 	if got := len(link.HardwareAddr); got != 6 {
-		t.Fatalf("parseLinkInfo().HardwareAddr len = %d, want 6", got)
+		t.Fatalf("parseLink().HardwareAddr len = %d, want 6", got)
 	}
 	if link.HardwareAddr[0] != 0x02 || link.HardwareAddr[5] != 0x02 {
-		t.Fatalf("parseLinkInfo().HardwareAddr = %v, want preserved bytes", link.HardwareAddr)
+		t.Fatalf("parseLink().HardwareAddr = %v, want preserved bytes", link.HardwareAddr)
 	}
 }
 
-func TestParseLinkInfoRejectsMalformedAttribute(t *testing.T) {
+func TestParseLinkRejectsMalformedAttribute(t *testing.T) {
 	payload := appendIfInfoPayload(ifInfomsg{Index: 1}, malformedRtAttr(2))
 
-	_, _, err := parseLinkInfo(payload)
+	_, _, err := parseLink(payload)
 	if !errors.Is(err, zcall.EINVAL) {
-		t.Fatalf("parseLinkInfo() error = %v, want EINVAL", err)
+		t.Fatalf("parseLink() error = %v, want EINVAL", err)
 	}
 }
 
-func TestParseLinkInfoSkipsUnnamedOrInvalidLinks(t *testing.T) {
+func TestParseLinkSkipsUnnamedOrInvalidLinks(t *testing.T) {
 	t.Run("short payload", func(t *testing.T) {
-		_, ok, err := parseLinkInfo(make([]byte, unsafe.Sizeof(ifInfomsg{})-1))
+		_, ok, err := parseLink(make([]byte, unsafe.Sizeof(ifInfomsg{})-1))
 		if err != nil {
-			t.Fatalf("parseLinkInfo(short) error = %v", err)
+			t.Fatalf("parseLink(short) error = %v", err)
 		}
 		if ok {
-			t.Fatal("parseLinkInfo(short) ok = true, want false")
+			t.Fatal("parseLink(short) ok = true, want false")
 		}
 	})
 
 	t.Run("invalid index", func(t *testing.T) {
 		payload := appendIfInfoPayload(ifInfomsg{Index: 0}, appendRtAttr(zcall.IFLA_IFNAME, append([]byte("lo"), 0)))
-		_, ok, err := parseLinkInfo(payload)
+		_, ok, err := parseLink(payload)
 		if err != nil {
-			t.Fatalf("parseLinkInfo(invalid index) error = %v", err)
+			t.Fatalf("parseLink(invalid index) error = %v", err)
 		}
 		if ok {
-			t.Fatal("parseLinkInfo(invalid index) ok = true, want false")
+			t.Fatal("parseLink(invalid index) ok = true, want false")
 		}
 	})
 
 	t.Run("missing name", func(t *testing.T) {
 		payload := appendIfInfoPayload(ifInfomsg{Index: 2}, appendRtAttr(zcall.IFLA_MTU, uint32Bytes(1500)))
-		_, ok, err := parseLinkInfo(payload)
+		_, ok, err := parseLink(payload)
 		if err != nil {
-			t.Fatalf("parseLinkInfo(missing name) error = %v", err)
+			t.Fatalf("parseLink(missing name) error = %v", err)
 		}
 		if ok {
-			t.Fatal("parseLinkInfo(missing name) ok = true, want false")
+			t.Fatal("parseLink(missing name) ok = true, want false")
 		}
 	})
 }

@@ -45,6 +45,14 @@
 //	    // handle error
 //	}
 //
+// # Linux Convenience Wrappers
+//
+// On Linux, zcall provides higher-level wrappers for common subsystems:
+//   - Network link discovery: Links, LinkByName, LinkByIndex
+//   - Special file descriptors: Eventfd2, TimerfdCreate, MemfdCreate, PidfdOpen, Signalfd4
+//   - Zero-copy I/O: Splice, Tee, Vmsplice
+//   - io_uring: IoUringSetup, IoUringEnter, IoUringRegister
+//
 // # Safety
 //
 // This package uses unsafe operations for pointer-to-uintptr conversion.

@@ -24,7 +24,7 @@ Langue : [English](./README.md) | [简体中文](./README.zh-CN.md) | [Español]
 
 - Entrées primitives pour les syscalls à 4 et 6 arguments.
 - Wrappers pour les opérations courantes d'I/O, de socket, de mémoire et d'options de socket.
-- Helpers Linux pour l'interrogation des interfaces réseau, les descripteurs spéciaux, le zero-copy et `io_uring`.
+- Helpers Linux pour l'interrogation des liens réseau, les descripteurs spéciaux, le zero-copy et `io_uring`.
 
 ## Installation
 
@@ -62,10 +62,10 @@ if errno != 0 {
 defer zcall.Close(fd)
 ```
 
-### Linux : lister les interfaces réseau
+### Linux : lister les liens réseau
 
 ```go
-ifaces, err := zcall.Interfaces()
+links, err := zcall.Links()
 if err != nil {
 	return err
 }
@@ -103,7 +103,7 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 | I/O Vectorisé | `Preadv2`, `Pwritev2` |
 | Socket | `Accept4` |
 | Socket I/O | `Sendmmsg`, `Recvmmsg` |
-| Réseau | `Interfaces`, `InterfaceByName`, `InterfaceByIndex` |
+| Réseau | `Links`, `LinkByName`, `LinkByIndex` |
 | Mémoire | `MemfdCreate` |
 | Timers | `TimerfdCreate`, `TimerfdSettime`, `TimerfdGettime` |
 | Événements | `Eventfd2`, `Signalfd4` |
