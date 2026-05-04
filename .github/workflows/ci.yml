@@ -28,10 +28,10 @@ jobs:
             grep -v -E "(^#|possible misuse of unsafe.Pointer)" /tmp/vet.out && exit 1 || true
           fi
       - name: Run tests
-        run: go test -v -race -coverprofile=coverage.out ./...
+        run: go test -timeout 120s -v -race -coverprofile=coverage.out ./...
       - name: Upload coverage to Codecov
         if: matrix.go-version == 'stable'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: coverage.out
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -57,7 +57,7 @@ jobs:
             grep -v -E "(^#|possible misuse of unsafe.Pointer)" /tmp/vet.out && exit 1 || true
           fi
       - name: Run tests
-        run: go test -v -race ./...
+        run: go test -timeout 120s -v -race ./...
 
   cross-build:
     name: Cross-Build (${{ matrix.goos }}/${{ matrix.goarch }})
