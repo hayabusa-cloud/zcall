@@ -85,24 +85,31 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 
 ### ラッパーの提供状況
 
-#### Linux と Darwin で利用可能
+#### Linux、Darwin、FreeBSD で利用可能
 
 | カテゴリ | 関数 |
 |----------|------|
-| 基本 I/O | `Read`、`Write`、`Close`、`Ioctl` |
+| 基本 I/O | `Read`、`Write`、`Close` |
 | ベクタ I/O | `Readv`、`Writev`、`Preadv`、`Pwritev` |
 | ソケット | `Socket`、`Bind`、`Listen`、`Accept`、`Connect`、`Shutdown`、`Socketpair` |
 | ソケットオプション | `Setsockopt`、`Getsockopt`、`Getsockname`、`Getpeername` |
 | ソケット I/O | `Sendto`、`Recvfrom`、`Sendmsg`、`Recvmsg` |
-| メモリ | `Mmap`、`Munmap`、`Pipe2` |
+| メモリ | `Mmap`、`Munmap` |
+
+#### Linux と FreeBSD で利用可能
+
+| カテゴリ | 関数 |
+|----------|------|
+| ソケット | `Accept4` |
+| ソケット I/O | `Sendmmsg`、`Recvmmsg` |
+| パイプ | `Pipe2` |
 
 #### Linux 専用
 
 | カテゴリ | 関数 |
 |----------|------|
+| 基本 I/O | `Ioctl` |
 | ベクタ I/O | `Preadv2`、`Pwritev2` |
-| ソケット | `Accept4` |
-| ソケット I/O | `Sendmmsg`、`Recvmmsg` |
 | ネットワーク | `Links`、`LinkByName`、`LinkByIndex` |
 | メモリ | `MemfdCreate` |
 | タイマー | `TimerfdCreate`、`TimerfdSettime`、`TimerfdGettime` |
@@ -137,8 +144,11 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 | linux/arm64  | ✅ サポート | `SVC #0` |
 | linux/riscv64 | ✅ サポート | `ECALL` |
 | linux/loong64 | ✅ サポート | `SYSCALL` |
+| darwin/amd64 | ✅ サポート | `SYSCALL` |
 | darwin/arm64 | ✅ サポート | `SVC #0x80` |
 | freebsd/amd64 | ⚠ 実験的、未検証 | `SYSCALL` |
+
+Darwin では、`Preadv` と `Pwritev` は呼び出し側が渡した iovec 配列に対する raw `pread`/`pwrite` ループとして実装されています。`zcall` が使う Darwin syscall テーブルは raw `pread`/`pwrite` を公開しますが、raw `preadv`/`pwritev` の trap 番号は公開しません。
 
 ## ライセンス
 

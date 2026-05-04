@@ -2,13 +2,14 @@
 // Use of this source code is governed by a MIT license
 // that can be found in the LICENSE file.
 
-//go:build darwin && arm64
+//go:build darwin && amd64
 
 package zcall
 
-// Syscall numbers for Darwin on arm64.
+// Syscall numbers for Darwin on amd64.
 // Reference: /usr/include/sys/syscall.h (XNU kernel)
-// Darwin arm64 SVC #0x80 routes to the BSD table and uses the table number in R16.
+// Darwin syscall numbers are BSD-style without the 0x2000000 class prefix.
+// The amd64 wrapper adds the BSD class prefix before SYSCALL entry.
 const (
 	// Basic I/O
 	SYS_READ   = 3
@@ -49,6 +50,8 @@ const (
 	SYS_KEVENT64 = 369
 )
 
+const darwinBSDClass = 0x2000000
+
 func darwinTrap(num uintptr) uintptr {
-	return num
+	return num | darwinBSDClass
 }
