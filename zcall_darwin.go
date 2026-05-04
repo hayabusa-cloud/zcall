@@ -12,16 +12,14 @@ import (
 	"code.hybscloud.com/zcall/internal"
 )
 
-const bsdClass = 0x2000000
-
 // Syscall4 executes a syscall with up to 4 arguments.
 func Syscall4(num, a1, a2, a3, a4 uintptr) (r1, errno uintptr) {
-	return internal.RawSyscall4(num|bsdClass, a1, a2, a3, a4)
+	return internal.RawSyscall4(darwinTrap(num), a1, a2, a3, a4)
 }
 
 // Syscall6 executes a syscall with up to 6 arguments.
 func Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr) {
-	return internal.RawSyscall6(num|bsdClass, a1, a2, a3, a4, a5, a6)
+	return internal.RawSyscall6(darwinTrap(num), a1, a2, a3, a4, a5, a6)
 }
 
 // Close closes a file descriptor.
@@ -150,12 +148,58 @@ func Writev(fd uintptr, iov unsafe.Pointer, iovcnt uintptr) (n uintptr, errno ui
 
 // Preadv reads into multiple buffers at a given offset.
 func Preadv(fd uintptr, iov unsafe.Pointer, iovcnt uintptr, offset int64) (n uintptr, errno uintptr) {
-	return Syscall4(SYS_PREADV, fd, uintptr(noescape(iov)), iovcnt, uintptr(offset))
+	if iovcnt == 0 {
+		return 0, 0
+	}
+	vecs := unsafe.Slice((*Iovec)(noescape(iov)), iovcnt)
+	off := offset
+	for i := range vecs {
+		l := uintptr(vecs[i].Len)
+		if l == 0 {
+			continue
+		}
+		nr, errno := Syscall4(SYS_PREAD, fd, uintptr(noescape(unsafe.Pointer(vecs[i].Base))), l, uintptr(off))
+		if errno != 0 {
+			if n != 0 {
+				return n, 0
+			}
+			return nr, errno
+		}
+		n += nr
+		off += int64(nr)
+		if nr < l {
+			return n, 0
+		}
+	}
+	return n, 0
 }
 
 // Pwritev writes from multiple buffers at a given offset.
 func Pwritev(fd uintptr, iov unsafe.Pointer, iovcnt uintptr, offset int64) (n uintptr, errno uintptr) {
-	return Syscall4(SYS_PWRITEV, fd, uintptr(noescape(iov)), iovcnt, uintptr(offset))
+	if iovcnt == 0 {
+		return 0, 0
+	}
+	vecs := unsafe.Slice((*Iovec)(noescape(iov)), iovcnt)
+	off := offset
+	for i := range vecs {
+		l := uintptr(vecs[i].Len)
+		if l == 0 {
+			continue
+		}
+		nw, errno := Syscall4(SYS_PWRITE, fd, uintptr(noescape(unsafe.Pointer(vecs[i].Base))), l, uintptr(off))
+		if errno != 0 {
+			if n != 0 {
+				return n, 0
+			}
+			return nw, errno
+		}
+		n += nw
+		off += int64(nw)
+		if nw < l {
+			return n, 0
+		}
+	}
+	return n, 0
 }
 
 // Mmap maps files or devices into memory.
