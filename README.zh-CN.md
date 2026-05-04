@@ -85,24 +85,31 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 
 ### 封装函数可用性
 
-#### Linux 和 Darwin 可用
+#### Linux、Darwin 和 FreeBSD 可用
 
 | 类别 | 函数 |
 |------|------|
-| 基础 I/O | `Read`、`Write`、`Close`、`Ioctl` |
+| 基础 I/O | `Read`、`Write`、`Close` |
 | 向量 I/O | `Readv`、`Writev`、`Preadv`、`Pwritev` |
 | 套接字 | `Socket`、`Bind`、`Listen`、`Accept`、`Connect`、`Shutdown`、`Socketpair` |
 | 套接字选项 | `Setsockopt`、`Getsockopt`、`Getsockname`、`Getpeername` |
 | 套接字 I/O | `Sendto`、`Recvfrom`、`Sendmsg`、`Recvmsg` |
-| 内存 | `Mmap`、`Munmap`、`Pipe2` |
+| 内存 | `Mmap`、`Munmap` |
+
+#### Linux 和 FreeBSD 可用
+
+| 类别 | 函数 |
+|------|------|
+| 套接字 | `Accept4` |
+| 套接字 I/O | `Sendmmsg`、`Recvmmsg` |
+| 管道 | `Pipe2` |
 
 #### 仅 Linux 可用
 
 | 类别 | 函数 |
 |------|------|
+| 基础 I/O | `Ioctl` |
 | 向量 I/O | `Preadv2`、`Pwritev2` |
-| 套接字 | `Accept4` |
-| 套接字 I/O | `Sendmmsg`、`Recvmmsg` |
 | 网络 | `Links`、`LinkByName`、`LinkByIndex` |
 | 内存 | `MemfdCreate` |
 | 定时器 | `TimerfdCreate`、`TimerfdSettime`、`TimerfdGettime` |
@@ -137,8 +144,11 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 | linux/arm64  | ✅ 支持 | `SVC #0` |
 | linux/riscv64 | ✅ 支持 | `ECALL` |
 | linux/loong64 | ✅ 支持 | `SYSCALL` |
+| darwin/amd64 | ✅ 支持 | `SYSCALL` |
 | darwin/arm64 | ✅ 支持 | `SVC #0x80` |
 | freebsd/amd64 | ⚠ 实验性，未经验证 | `SYSCALL` |
+
+在 Darwin 上，`Preadv` 和 `Pwritev` 会在调用方提供的 iovec 数组上执行 raw `pread`/`pwrite` 循环，因为 `zcall` 使用的 Darwin syscall 表公开 raw `pread`/`pwrite`，不公开 raw `preadv`/`pwritev` trap 编号。
 
 ## 许可证
 

@@ -85,24 +85,31 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 
 ### Disponibilidad de wrappers
 
-#### Disponible en Linux y Darwin
+#### Disponible en Linux, Darwin y FreeBSD
 
 | Categoría | Funciones |
 |-----------|-----------|
-| I/O Básico | `Read`, `Write`, `Close`, `Ioctl` |
+| I/O Básico | `Read`, `Write`, `Close` |
 | I/O Vectorizado | `Readv`, `Writev`, `Preadv`, `Pwritev` |
 | Socket | `Socket`, `Bind`, `Listen`, `Accept`, `Connect`, `Shutdown`, `Socketpair` |
 | Opciones de Socket | `Setsockopt`, `Getsockopt`, `Getsockname`, `Getpeername` |
 | Socket I/O | `Sendto`, `Recvfrom`, `Sendmsg`, `Recvmsg` |
-| Memoria | `Mmap`, `Munmap`, `Pipe2` |
+| Memoria | `Mmap`, `Munmap` |
+
+#### Disponible en Linux y FreeBSD
+
+| Categoría | Funciones |
+|-----------|-----------|
+| Socket | `Accept4` |
+| Socket I/O | `Sendmmsg`, `Recvmmsg` |
+| Pipe | `Pipe2` |
 
 #### Solo Linux
 
 | Categoría | Funciones |
 |-----------|-----------|
+| I/O Básico | `Ioctl` |
 | I/O Vectorizado | `Preadv2`, `Pwritev2` |
-| Socket | `Accept4` |
-| Socket I/O | `Sendmmsg`, `Recvmmsg` |
 | Red | `Links`, `LinkByName`, `LinkByIndex` |
 | Memoria | `MemfdCreate` |
 | Timers | `TimerfdCreate`, `TimerfdSettime`, `TimerfdGettime` |
@@ -137,8 +144,11 @@ Syscall6(num, a1, a2, a3, a4, a5, a6 uintptr) (r1, errno uintptr)
 | linux/arm64  | ✅ Soportado | `SVC #0` |
 | linux/riscv64 | ✅ Soportado | `ECALL` |
 | linux/loong64 | ✅ Soportado | `SYSCALL` |
+| darwin/amd64 | ✅ Soportado | `SYSCALL` |
 | darwin/arm64 | ✅ Soportado | `SVC #0x80` |
 | freebsd/amd64 | ⚠ Experimental, sin probar | `SYSCALL` |
+
+En Darwin, `Preadv` y `Pwritev` usan bucles raw `pread`/`pwrite` sobre el arreglo iovec proporcionado por el llamador porque la tabla de syscalls de Darwin usada por `zcall` expone `pread`/`pwrite` raw, no números de trap raw para `preadv`/`pwritev`.
 
 ## Licencia
 

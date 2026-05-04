@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT license
 // that can be found in the LICENSE file.
 
-// Package zcall provides raw syscall primitives for Linux and Darwin.
+// Package zcall provides raw syscall primitives for Linux, Darwin, and FreeBSD.
 //
 // # Overview
 //
@@ -31,18 +31,23 @@
 //   - linux/arm64: Uses SVC #0 instruction
 //   - linux/riscv64: Uses ECALL instruction
 //   - linux/loong64: Uses SYSCALL instruction
+//   - darwin/amd64: Uses SYSCALL instruction
 //   - darwin/arm64: Uses SVC #0x80 instruction
 //   - freebsd/amd64: Uses SYSCALL instruction
+//
+// On Darwin, Preadv and Pwritev are implemented as raw pread/pwrite loops
+// across the caller-provided iovec array because the Darwin syscall table used
+// by zcall exposes raw pread/pwrite, not raw preadv/pwritev trap numbers.
 //
 // # Usage
 //
 // zcall is intended as a building block for I/O libraries that need direct
-// syscall control. Direct usage requires understanding of Linux syscall
-// semantics and careful attention to memory safety.
+// syscall control. Direct usage requires understanding of the target platform's
+// syscall semantics and careful attention to memory safety.
 //
 //	r1, errno := zcall.Syscall6(zcall.SYS_IO_URING_ENTER, fd, toSubmit, minComplete, flags, sigset, sigsetSize)
 //	if errno != 0 {
-//	    // handle error
+//		// handle error
 //	}
 //
 // # Linux Convenience Wrappers
