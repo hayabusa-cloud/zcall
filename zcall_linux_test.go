@@ -97,6 +97,42 @@ func TestLinkLookupValidation(t *testing.T) {
 	}
 }
 
+func TestLinksFromRouteNetlinkPropagatesOpenError(t *testing.T) {
+	_, err := linksFromRouteNetlink(0, 0, Errno(EPERM))
+	if err != Errno(EPERM) {
+		t.Fatalf("linksFromRouteNetlink(open error) = %v, want %v", err, Errno(EPERM))
+	}
+}
+
+func TestLinksFromRouteNetlinkPropagatesSendError(t *testing.T) {
+	_, err := linksFromRouteNetlink(^uintptr(0), 0, nil)
+	if err != Errno(EBADF) && err != Errno(EPERM) {
+		t.Fatalf("linksFromRouteNetlink(send error) = %v, want %v or %v", err, Errno(EBADF), Errno(EPERM))
+	}
+}
+
+func TestFindLinkHelpersPropagateLinksError(t *testing.T) {
+	want := Errno(EPERM)
+	if _, err := findLinkByName("lo", nil, want); err != want {
+		t.Fatalf("findLinkByName(error) = %v, want %v", err, want)
+	}
+	if _, err := findLinkByIndex(1, nil, want); err != want {
+		t.Fatalf("findLinkByIndex(error) = %v, want %v", err, want)
+	}
+}
+
+func TestOpenRouteNetlinkFDPropagatesOpenErrors(t *testing.T) {
+	_, _, err := openRouteNetlinkFD(0, uintptr(EPERM))
+	if err != Errno(EPERM) {
+		t.Fatalf("openRouteNetlinkFD(socket error) = %v, want %v", err, Errno(EPERM))
+	}
+
+	_, _, err = openRouteNetlinkFD(^uintptr(0), 0)
+	if err != Errno(EBADF) && err != Errno(EPERM) {
+		t.Fatalf("openRouteNetlinkFD(bind error) = %v, want %v or %v", err, Errno(EBADF), Errno(EPERM))
+	}
+}
+
 func TestLinksLookupRoundTrip(t *testing.T) {
 	links, err := Links()
 	if err != nil {

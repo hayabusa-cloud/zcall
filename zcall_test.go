@@ -101,6 +101,7 @@ func TestLinkLookupsRejectInvalidInput(t *testing.T) {
 // Used to safely convert uintptr (from mmap) to unsafe.Pointer.
 //
 //go:linkname noescape runtime.noescape
+//go:noescape
 //go:nosplit
 func noescape(p unsafe.Pointer) unsafe.Pointer
 

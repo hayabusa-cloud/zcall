@@ -10,6 +10,7 @@ import "unsafe"
 // This links to the runtime's implementation to avoid go vet warnings.
 //
 //go:linkname noescape runtime.noescape
+//go:noescape
 //go:nosplit
 func noescape(p unsafe.Pointer) unsafe.Pointer
 

@@ -110,8 +110,12 @@ func Ioctl(fd, req uintptr, arg unsafe.Pointer) (errno uintptr) {
 // Links returns the current Linux network link table.
 func Links() ([]Link, error) {
 	fd, pid, err := openRouteNetlink()
-	if err != nil {
-		return nil, err
+	return linksFromRouteNetlink(fd, pid, err)
+}
+
+func linksFromRouteNetlink(fd uintptr, pid uint32, openErr error) ([]Link, error) {
+	if openErr != nil {
+		return nil, openErr
 	}
 	defer Close(fd)
 
@@ -122,12 +126,7 @@ func Links() ([]Link, error) {
 	return recvLinks(fd, pid, seq)
 }
 
-// LinkByName resolves a network link by name from the Linux link table.
-func LinkByName(name string) (*Link, error) {
-	if name == "" || len(name) >= IFNAMSIZ {
-		return nil, Errno(EINVAL)
-	}
-	links, err := Links()
+func findLinkByName(name string, links []Link, err error) (*Link, error) {
 	if err != nil {
 		return nil, err
 	}
@@ -139,12 +138,7 @@ func LinkByName(name string) (*Link, error) {
 	return nil, Errno(ENODEV)
 }
 
-// LinkByIndex resolves a network link by index from the Linux link table.
-func LinkByIndex(index int) (*Link, error) {
-	if index <= 0 {
-		return nil, Errno(EINVAL)
-	}
-	links, err := Links()
+func findLinkByIndex(index int, links []Link, err error) (*Link, error) {
 	if err != nil {
 		return nil, err
 	}
@@ -154,6 +148,24 @@ func LinkByIndex(index int) (*Link, error) {
 		}
 	}
 	return nil, Errno(ENODEV)
+}
+
+// LinkByName resolves a network link by name from the Linux link table.
+func LinkByName(name string) (*Link, error) {
+	if name == "" || len(name) >= IFNAMSIZ {
+		return nil, Errno(EINVAL)
+	}
+	links, err := Links()
+	return findLinkByName(name, links, err)
+}
+
+// LinkByIndex resolves a network link by index from the Linux link table.
+func LinkByIndex(index int) (*Link, error) {
+	if index <= 0 {
+		return nil, Errno(EINVAL)
+	}
+	links, err := Links()
+	return findLinkByIndex(index, links, err)
 }
 
 // IfNameToIndex resolves a network link name to its kernel index.
@@ -167,6 +179,11 @@ func IfNameToIndex(name string) (uint32, error) {
 
 func openRouteNetlink() (uintptr, uint32, error) {
 	fd, errno := Socket(AF_NETLINK, SOCK_RAW|SOCK_CLOEXEC, NETLINK_ROUTE)
+	return openRouteNetlinkFD(fd, errno)
+}
+
+func openRouteNetlinkFD(fd uintptr, socketErr uintptr) (uintptr, uint32, error) {
+	errno := socketErr
 	if errno != 0 {
 		return 0, 0, Errno(errno)
 	}
