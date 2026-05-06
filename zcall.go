@@ -438,24 +438,33 @@ func Writev(fd uintptr, iov unsafe.Pointer, iovcnt uintptr) (n uintptr, errno ui
 	return Syscall4(SYS_WRITEV, fd, uintptr(noescape(iov)), iovcnt, 0)
 }
 
+func offs2lohi(offset int64) (uintptr, uintptr) {
+	u := uint64(offset)
+	return uintptr(u), uintptr(uint32(u >> 32))
+}
+
 // Preadv reads into multiple buffers at a given offset.
 func Preadv(fd uintptr, iov unsafe.Pointer, iovcnt uintptr, offset int64) (n uintptr, errno uintptr) {
-	return Syscall4(SYS_PREADV, fd, uintptr(noescape(iov)), iovcnt, uintptr(offset))
+	offLo, offHi := offs2lohi(offset)
+	return Syscall6(SYS_PREADV, fd, uintptr(noescape(iov)), iovcnt, offLo, offHi, 0)
 }
 
 // Pwritev writes from multiple buffers at a given offset.
 func Pwritev(fd uintptr, iov unsafe.Pointer, iovcnt uintptr, offset int64) (n uintptr, errno uintptr) {
-	return Syscall4(SYS_PWRITEV, fd, uintptr(noescape(iov)), iovcnt, uintptr(offset))
+	offLo, offHi := offs2lohi(offset)
+	return Syscall6(SYS_PWRITEV, fd, uintptr(noescape(iov)), iovcnt, offLo, offHi, 0)
 }
 
 // Preadv2 reads into multiple buffers at a given offset with flags.
 func Preadv2(fd uintptr, iov unsafe.Pointer, iovcnt uintptr, offset int64, flags uintptr) (n uintptr, errno uintptr) {
-	return Syscall6(SYS_PREADV2, fd, uintptr(noescape(iov)), iovcnt, uintptr(offset), 0, flags)
+	offLo, offHi := offs2lohi(offset)
+	return Syscall6(SYS_PREADV2, fd, uintptr(noescape(iov)), iovcnt, offLo, offHi, flags)
 }
 
 // Pwritev2 writes from multiple buffers at a given offset with flags.
 func Pwritev2(fd uintptr, iov unsafe.Pointer, iovcnt uintptr, offset int64, flags uintptr) (n uintptr, errno uintptr) {
-	return Syscall6(SYS_PWRITEV2, fd, uintptr(noescape(iov)), iovcnt, uintptr(offset), 0, flags)
+	offLo, offHi := offs2lohi(offset)
+	return Syscall6(SYS_PWRITEV2, fd, uintptr(noescape(iov)), iovcnt, offLo, offHi, flags)
 }
 
 // Pipe2 creates a pipe with flags.
