@@ -9,6 +9,7 @@ package zcall_test
 import (
 	"errors"
 	"net"
+	"os"
 	"testing"
 	"time"
 	"unsafe"
@@ -1208,6 +1209,52 @@ func TestPreadvPwritev(t *testing.T) {
 	}
 }
 
+func TestPreadvPwritevHighOffset(t *testing.T) {
+	f, err := os.CreateTemp("", "zcall-preadv-pwritev-*")
+	if err != nil {
+		t.Fatalf("CreateTemp failed: %v", err)
+	}
+	defer os.Remove(f.Name())
+	defer f.Close()
+
+	fd := uintptr(f.Fd())
+	offset := int64(1<<33 + 123)
+	want := []byte("preadv-pwritev high offset")
+	iov := []zcall.Iovec{
+		{Base: &want[0], Len: uint64(len(want))},
+	}
+
+	n, errno := zcall.Pwritev(fd, unsafe.Pointer(&iov[0]), 1, offset)
+	if errno != 0 {
+		t.Fatalf("Pwritev high offset failed: %v", zcall.Errno(errno))
+	}
+	if n != uintptr(len(want)) {
+		t.Fatalf("Pwritev high offset n=%d, want %d", n, len(want))
+	}
+	st, err := f.Stat()
+	if err != nil {
+		t.Fatalf("Stat failed: %v", err)
+	}
+	if st.Size() != offset+int64(len(want)) {
+		t.Fatalf("Pwritev high offset size=%d, want %d", st.Size(), offset+int64(len(want)))
+	}
+
+	got := make([]byte, len(want))
+	rIov := []zcall.Iovec{
+		{Base: &got[0], Len: uint64(len(got))},
+	}
+	n, errno = zcall.Preadv(fd, unsafe.Pointer(&rIov[0]), 1, offset)
+	if errno != 0 {
+		t.Fatalf("Preadv high offset failed: %v", zcall.Errno(errno))
+	}
+	if n != uintptr(len(got)) {
+		t.Fatalf("Preadv high offset n=%d, want %d", n, len(got))
+	}
+	if string(got) != string(want) {
+		t.Fatalf("Preadv high offset read %q, want %q", got, want)
+	}
+}
+
 func TestPreadv2Pwritev2(t *testing.T) {
 	// Preadv2/Pwritev2 require seekable file descriptors (not sockets/pipes)
 	// Test by verifying the syscall interface works - sockets return ESPIPE
@@ -1244,6 +1291,96 @@ func TestPreadv2Pwritev2(t *testing.T) {
 	}
 	if zcall.Errno(errno) != zcall.ESPIPE {
 		t.Fatalf("Preadv2 errno = %v, want ESPIPE", zcall.Errno(errno))
+	}
+}
+
+func TestPreadv2Pwritev2HighOffsetAndFlags(t *testing.T) {
+	f, err := os.CreateTemp("", "zcall-preadv2-pwritev2-*")
+	if err != nil {
+		t.Fatalf("CreateTemp failed: %v", err)
+	}
+	defer os.Remove(f.Name())
+	defer f.Close()
+
+	fd := uintptr(f.Fd())
+	offset := int64(1<<33 + 456)
+	want := []byte("preadv2-pwritev2 high offset")
+	iov := []zcall.Iovec{
+		{Base: &want[0], Len: uint64(len(want))},
+	}
+
+	n, errno := zcall.Pwritev2(fd, unsafe.Pointer(&iov[0]), 1, offset, 0)
+	if errno != 0 {
+		t.Fatalf("Pwritev2 high offset failed: %v", zcall.Errno(errno))
+	}
+	if n != uintptr(len(want)) {
+		t.Fatalf("Pwritev2 high offset n=%d, want %d", n, len(want))
+	}
+	st, err := f.Stat()
+	if err != nil {
+		t.Fatalf("Stat failed: %v", err)
+	}
+	wantSize := offset + int64(len(want))
+	if st.Size() != wantSize {
+		t.Fatalf("Pwritev2 high offset size=%d, want %d", st.Size(), wantSize)
+	}
+
+	got := make([]byte, len(want))
+	rIov := []zcall.Iovec{
+		{Base: &got[0], Len: uint64(len(got))},
+	}
+	n, errno = zcall.Preadv2(fd, unsafe.Pointer(&rIov[0]), 1, offset, 0)
+	if errno != 0 {
+		t.Fatalf("Preadv2 high offset failed: %v", zcall.Errno(errno))
+	}
+	if n != uintptr(len(got)) {
+		t.Fatalf("Preadv2 high offset n=%d, want %d", n, len(got))
+	}
+	if string(got) != string(want) {
+		t.Fatalf("Preadv2 high offset read %q, want %q", got, want)
+	}
+
+	if _, err := f.Seek(0, 2); err != nil {
+		t.Fatalf("Seek end failed: %v", err)
+	}
+	current := []byte(" current")
+	currentIov := []zcall.Iovec{
+		{Base: &current[0], Len: uint64(len(current))},
+	}
+	n, errno = zcall.Pwritev2(fd, unsafe.Pointer(&currentIov[0]), 1, -1, 0)
+	if errno != 0 {
+		t.Fatalf("Pwritev2 current offset failed: %v", zcall.Errno(errno))
+	}
+	if n != uintptr(len(current)) {
+		t.Fatalf("Pwritev2 current offset n=%d, want %d", n, len(current))
+	}
+	wantSize += int64(len(current))
+	st, err = f.Stat()
+	if err != nil {
+		t.Fatalf("Stat after current offset failed: %v", err)
+	}
+	if st.Size() != wantSize {
+		t.Fatalf("Pwritev2 current offset size=%d, want %d", st.Size(), wantSize)
+	}
+
+	appendData := []byte(" append")
+	appendIov := []zcall.Iovec{
+		{Base: &appendData[0], Len: uint64(len(appendData))},
+	}
+	n, errno = zcall.Pwritev2(fd, unsafe.Pointer(&appendIov[0]), 1, 0, zcall.RWF_APPEND)
+	if errno != 0 {
+		t.Fatalf("Pwritev2 RWF_APPEND failed: %v", zcall.Errno(errno))
+	}
+	if n != uintptr(len(appendData)) {
+		t.Fatalf("Pwritev2 RWF_APPEND n=%d, want %d", n, len(appendData))
+	}
+	wantSize += int64(len(appendData))
+	st, err = f.Stat()
+	if err != nil {
+		t.Fatalf("Stat after RWF_APPEND failed: %v", err)
+	}
+	if st.Size() != wantSize {
+		t.Fatalf("Pwritev2 RWF_APPEND size=%d, want %d", st.Size(), wantSize)
 	}
 }
 
