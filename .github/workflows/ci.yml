@@ -13,25 +13,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version: ['1.26.x', 'stable']
+        go-version: ['1.27.x', 'stable']
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go-version }}
       - name: Vet
-        run: |
-          go vet ./... 2>&1 | tee /tmp/vet.out || true
-          if [ -s /tmp/vet.out ]; then
-            # Filter package headers and known false positive (Mmap returns kernel pointer)
-            grep -v -E "(^#|possible misuse of unsafe.Pointer)" /tmp/vet.out && exit 1 || true
-          fi
+        run: go vet ./...
       - name: Run tests
-        run: go test -timeout 120s -v -race -coverprofile=coverage.out ./...
+        run: |
+          uname -srm
+          go test -timeout 120s -v -race -coverprofile=coverage.out ./...
       - name: Upload coverage to Codecov
         if: matrix.go-version == 'stable'
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           files: coverage.out
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -42,22 +39,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version: ['1.26.x', 'stable']
+        go-version: ['1.27.x', 'stable']
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go-version }}
       - name: Vet
-        run: |
-          go vet ./... 2>&1 | tee /tmp/vet.out || true
-          if [ -s /tmp/vet.out ]; then
-            # Filter package headers and known false positive (Mmap returns kernel pointer)
-            grep -v -E "(^#|possible misuse of unsafe.Pointer)" /tmp/vet.out && exit 1 || true
-          fi
+        run: go vet ./...
       - name: Run tests
-        run: go test -timeout 120s -v -race ./...
+        run: |
+          uname -srm
+          go test -timeout 120s -v -race ./...
 
   cross-build:
     name: Cross-Build (${{ matrix.goos }}/${{ matrix.goarch }})
@@ -71,11 +65,11 @@ jobs:
           - { goos: linux, goarch: loong64 }
           - { goos: freebsd, goarch: amd64 }
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
-          go-version: '1.26.x'
+          go-version: '1.27.x'
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}
