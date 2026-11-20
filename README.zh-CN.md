@@ -1,6 +1,7 @@
 # zcall
 
 [![Go Reference](https://pkg.go.dev/badge/code.hybscloud.com/zcall.svg)](https://pkg.go.dev/code.hybscloud.com/zcall)
+[![Benchmarks](https://github.com/hayabusa-cloud/zcall/actions/workflows/benchmarks.yml/badge.svg)](https://github.com/hayabusa-cloud/zcall/actions/workflows/benchmarks.yml)
 [![Codecov](https://codecov.io/gh/hayabusa-cloud/zcall/graph/badge.svg)](https://codecov.io/gh/hayabusa-cloud/zcall)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 

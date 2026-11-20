@@ -1,0 +1,40 @@
+name: Benchmarks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmarks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.x'
+
+      - name: Run syscall benchmarks
+        shell: bash
+        run: |
+          report="$RUNNER_TEMP/benchmarks.txt"
+          go version > "$report"
+          uname -srm >> "$report"
+          go test -run '^$' -bench . -benchmem -benchtime=200ms -count=10 -cpu=1 -timeout=120s . | tee -a "$report"
+          {
+            echo '~~~text'
+            cat "$report"
+            echo '~~~'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: zcall-benchmarks
+          path: ${{ runner.temp }}/benchmarks.txt
+          if-no-files-found: error

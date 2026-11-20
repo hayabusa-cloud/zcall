@@ -1719,8 +1719,7 @@ func BenchmarkSocket(b *testing.B) {
 	}
 }
 
-// BenchmarkZcallWrite benchmarks zcall.Write to a pipe.
-// This measures the raw syscall latency without Go runtime hooks.
+// BenchmarkZcallWrite measures a 64-byte pipe write/read round trip.
 func BenchmarkZcallWrite(b *testing.B) {
 	var fds [2]int32
 	errno := zcall.Pipe2(&fds, zcall.O_NONBLOCK|zcall.O_CLOEXEC)
@@ -1738,7 +1737,7 @@ func BenchmarkZcallWrite(b *testing.B) {
 	}
 }
 
-// BenchmarkZcallWriteLatency measures per-operation latency for zcall.Write.
+// BenchmarkZcallWriteLatency reports the mean duration of a timed pipe write/read round trip.
 func BenchmarkZcallWriteLatency(b *testing.B) {
 	var fds [2]int32
 	errno := zcall.Pipe2(&fds, zcall.O_NONBLOCK|zcall.O_CLOEXEC)
@@ -1749,13 +1748,15 @@ func BenchmarkZcallWriteLatency(b *testing.B) {
 	defer zcall.Close(uintptr(fds[1]))
 
 	buf := make([]byte, 64)
+	var total time.Duration
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		start := time.Now()
 		zcall.Write(uintptr(fds[1]), buf)
 		zcall.Read(uintptr(fds[0]), buf)
-		b.ReportMetric(float64(time.Since(start).Nanoseconds()), "ns/roundtrip")
+		total += time.Since(start)
 	}
+	b.ReportMetric(float64(total.Nanoseconds())/float64(b.N), "ns/roundtrip")
 }
 
 func TestSignalfd4(t *testing.T) {
